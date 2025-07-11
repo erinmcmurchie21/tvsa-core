@@ -1,0 +1,106 @@
+
+import numpy as np
+from scipy.integrate import solve_ivp
+from additional_functions import create_non_uniform_grid, adsorption_isotherm_1, adsorption_isotherm_2, quadratic_extrapolation, quadratic_extrapolation_derivative
+from scipy import integrate
+import time
+import matplotlib.pyplot as pltbasucally 
+from tvsa_adsorption_column import ODE_calculations
+
+"""This script sets up the initial conditions and parameters for an adsorption column model simulation.
+It defines the column grid, bed properties, inlet and outlet conditions, and initializes the state variables for the simulation.
+The components are (1) CO2, (2) H2O, (3) N2 and (4) O2."""
+
+
+column_grid = create_non_uniform_grid()
+
+# define fixed bed properties
+bed_properties = {
+    "bed_voidage": 0.4,  # Example value for bed voidage
+    "particle_diameter": 0.0075,  # Example value for particle diameter in meters
+    "inner_bed_diameter": 0.08,
+    "outer_bed_diameter": 0.082,  # Example value for bed diameter in meters
+    "column_area": 0.08**2 * np.pi / 4,  # Cross-sectional area of the column
+    "R": 8.314,  # Universal gas constant in J/(mol*K)
+    "T_column": 298,  # Column temperature in Kelvin
+    "rho_b": 55.4,  # Example value for bed density in kg/m^3
+    "sorbent_mass": 0.4* 0.08**2 * np.pi / 4 * 0.01 * 55.4,  # Example value for sorbent mass in kg
+    "bed_length": 0.01,  # Example value for bed length in meters
+    "wall_heat_capacity": 4 * 10**6, # J /m^3/K, # Example value for wall heat capacity
+    "solid_heat_capacity": 2070, # J /kg/K, # Example value for solid heat capacity
+    "heat_transfer_coefficient": 3,  # Example value for heat transfer coefficient in W/(m^2*K)
+    "heat_transfer_coefficient_wall": 26,  # Example value for wall heat transfer coefficient in W/(m^2*K)
+    "adsorption_heat_1": -57,  # Example value for adsorption heat of component 1 (CO2) in kJ/mol
+    "heat_capacity_1": 42.46,  # Example value for heat capacity of component 1 (CO2) in J/(mol*K)
+    "mass_transfer_1": 0.0002,  # Example value for mass transfer coefficient of component 1 (CO2) in s-1
+    "adsorption_heat_2": -49,  # Example value for adsorption heat of component 2 (H2O) in kJ/mol
+    "heat_capacity_2": 73.1,  # Example value for heat capacity of component 2 (H2O) in J/(mol*K)
+    "mass_transfer_2": 0.002,  # Example value for mass transfer coefficient of component 2 (H2O) in s-1
+    "MW_1": 44.01,  # Molecular weight of component 1 (CO2) in g/mol
+    "MW_2": 18.02,  # Molecular weight of component 2 (H2O) in g/mol
+    "MW_3": 28.02,  # Molecular weight of component 3 (N2) in g/mol
+    "MW_4": 32.00,  # Molecular weight of component 4 (O2) in g/mol
+}
+
+#define bed inlet values (subject to variation)
+inlet_values = {
+    "inlet_type": "mass_flow",
+    "velocity": 1.0,  # Example value for superficial velocity in m/s
+    "rho_gas": 1.13,  # Example value for feed density in kg/m^3
+    "feed_mass_flow": (0.1 * bed_properties["column_area"] * "rho_gas"),  # Example value for feed mass flow in kg/s
+    "feed_temperature": 298,  # Example value for feed temperature in Kelvin
+    "feed_pressure": 101325,  # Example value for feed pressure in Pa
+    "mu": 1.78e-5,  # Example value for feed viscosity in Pa.s
+    "y1_feed_value": 0.05,  # Example value for feed mole fraction
+    "y2_feed_value": 0.01,  # Example value for feed mole fraction
+    "y3_feed_value": 0.94,  # Example value for feed mole fraction
+}
+
+# define bed outlet values (subject to variation)
+outlet_values = {
+    "outlet_type": "pressure",
+    "outlet_pressure": 101325,  # Example value for outlet pressure in Pa
+    "outlet_temperature": 298,  # Example value for outlet temperature in Kelvin
+    "mu": 1.8e-5,  # Example value for outlet viscosity in Pa.s
+}
+
+# initial values for the column
+P = np.ones(column_grid["num_cells"]) * 101325  # Example pressure vector in Pa
+T = np.ones(column_grid["num_cells"]) * 298  # Example temperature vector in K
+Tw = np.ones(column_grid["num_cells"]) * 298  # Example wall temperature vector in K
+y1 = np.ones(column_grid["num_cells"]) * 420e-6  # Example mole fraction of component 1
+y2 = np.ones(column_grid["num_cells"]) * 1e-6  # Example mole fraction of component 2
+y3 = np.ones(column_grid["num_cells"]) * 0.78  # Example mole fraction of component 3
+n1 = adsorption_isotherm_1(P, T, y1)  # Example concentration vector for component 1 in mol/m^3
+n2 = adsorption_isotherm_2(P, T, y2)  # Example concentration vector for component 2 in mol/m^3
+F = np.zeros(4)  # Additional variables (e.g., flow rates, mass balances)
+initial_conditions = np.concatenate([P, T, Tw, y1, y2, y3, n1, n2, F])
+
+#Running simulation!
+
+# Implement solver
+t_span = [0, 10]  # Time span for the ODE solver
+rtol = 1e-6
+atol_P = 1e-2 * np.ones(len(P))
+atol_y = 1e-9 * np.ones(len(y))
+atol_n1 = 1e-3 * np.ones(len(n1))
+atol_n2 = 1e-3 * np.ones(len(n2))
+atol_F = 1e-4 * np.ones(len(F))
+atol_array = np.concatenate([atol_P, atol_y, atol_n1, atol_n2, atol_F])
+t0=time.time()
+output_matrix = solve_ivp(ODE_calculations, t_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array, t_eval=[5.0,8.0])
+t1=time.time()
+total_time = t1 - t0
+    
+#print(output_matrix)
+#print(output_matrix.t)
+
+P_result = output_matrix.y[0:column_grid["num_cells"]]
+T_result = output_matrix.y[column_grid["num_cells"]:2*column_grid["num_cells"]]
+Tw_result = output_matrix.y[2*column_grid["num_cells"]:3*column_grid["num_cells"]]
+y1_result = output_matrix.y[3*column_grid["num_cells"]:4*column_grid["num_cells"]]
+y2_result = output_matrix.y[4*column_grid["num_cells"]:5*column_grid["num_cells"]]
+y3_result = output_matrix.y[5*column_grid["num_cells"]:6*column_grid["num_cells"]]
+n1_result = output_matrix.y[6*column_grid["num_cells"]:7*column_grid["num_cells"]]
+n2_result = output_matrix.y[7*column_grid["num_cells"]:8*column_grid["num_cells"]]
+F_result = output_matrix.y[8*column_grid["num_cells"]:8*column_grid["num_cells"]+4]
