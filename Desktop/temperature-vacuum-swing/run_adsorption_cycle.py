@@ -1,7 +1,7 @@
 
 import numpy as np
 from scipy.integrate import solve_ivp
-from additional_functions import create_non_uniform_grid, adsorption_isotherm_1, adsorption_isotherm_2, quadratic_extrapolation, quadratic_extrapolation_derivative
+from additional_functions import create_non_uniform_grid, adsorption_isotherm_1, adsorption_isotherm_2, quadratic_extrapolation, quadratic_extrapolation_derivative, quadratic_extrapolation_derivative_nonzero, mass_balance_error, energy_balance_error
 from scipy import integrate
 import time
 import matplotlib.pyplot as plt
@@ -48,7 +48,7 @@ bed_properties = {
 #define bed inlet values (subject to variation)
 inlet_values = {
     "inlet_type": "mass_flow",
-    "velocity": 1.0,  # Example value for superficial velocity in m/s
+    "velocity": 0.1,  # Example value for superficial velocity in m/s
     "rho_gas": 1.13,  # Example value for feed density in kg/m^3
     "gas_thermal_conductivity": 0.09,  # K_z Example value for gas thermal conductivity in W/(m*K*s)
     "feed_mass_flow": (0.1 * float(bed_properties["column_area"]) * 1.13),  # Example value for feed mass flow in kg/s
@@ -77,8 +77,9 @@ y2 = np.ones(column_grid["num_cells"]) * 1e-6  # Example mole fraction of compon
 y3 = np.ones(column_grid["num_cells"]) * 0.78  # Example mole fraction of component 3
 n1 = adsorption_isotherm_1(P, T, y1, y2)[0]  # Example concentration vector for component 1 in mol/m^3
 n2 = adsorption_isotherm_2(P, T, y2)[0]  # Example concentration vector for component 2 in mol/m^3
-F = np.zeros(8)  # Additional variables (e.g., flow rates, mass balances)
-initial_conditions = np.concatenate([P, T, Tw, y1, y2, y3, n1, n2, F])
+F = np.zeros(8)
+E = np.zeros(2)  # Additional variables (e.g., flow rates, mass balances)
+initial_conditions = np.concatenate([P, T, Tw, y1, y2, y3, n1, n2, F, E])
 
 #Running simulation!
 
@@ -110,6 +111,11 @@ y3_result = output_matrix.y[5*column_grid["num_cells"]:6*column_grid["num_cells"
 n1_result = output_matrix.y[6*column_grid["num_cells"]:7*column_grid["num_cells"]]
 n2_result = output_matrix.y[7*column_grid["num_cells"]:8*column_grid["num_cells"]]
 F_result = output_matrix.y[8*column_grid["num_cells"]:8*column_grid["num_cells"]+8]
+E_result = output_matrix.y[8*column_grid["num_cells"]+8:]
+time = output_matrix.t
+
+print("Mass balance error:", mass_balance_error(F_result, P_result, T_result, y1_result, n1_result, time, bed_properties, column_grid))
+print("Energy balance error:", energy_balance_error(E_result, T_result, P_result, y1_result, y2_result, n1_result, n2_result, time, bed_properties, column_grid))
 
 
 # Create the plot for temperature against time

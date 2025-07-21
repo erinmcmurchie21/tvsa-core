@@ -1,4 +1,6 @@
 import numpy as np
+import scipy.integrate
+import scipy.integrate
 
 
 def create_non_uniform_grid():
@@ -47,6 +49,12 @@ def quadratic_extrapolation(x0, y0, x1, y1, x2, y2, x):
 def quadratic_extrapolation_derivative(x0, y0, x1, y1, x2):
     # We want to solve for value y2, given that dy/dx = 0 at x2
     y2 = (y1*(x0-x2)**2-y0*(x1-x2)**2)/((x0-x1)*(x0+x1-2*x2))
+    return y2
+
+def quadratic_extrapolation_derivative_nonzero(x0, y0, x1, y1, x2, a, b):
+    # We want to solve for value y2, given that dy/dx = 0 at x2
+    # d/dx = a * (b - y2)
+    y2 = (a * b + (y0 - y1)/(x0-x1) + y0/(-x0+x2) + y1/(-x1+x2))/(a + 1/(-x0+x2) + 1/(-x1+x2))
     return y2
 
 def adsorption_isotherm_1(pressure, temperature, mole_fraction_1, mole_fraction_2):
@@ -104,3 +112,88 @@ def calculate_wall_thermal_conductivity():
     # This is a placeholder and should be replaced with actual calculations or data
     wall_conductivity = 16  # W/(m*K*s) for the wall material
     return wall_conductivity
+
+
+def mass_balance_error(F_result, P_result, T_result, y1_result, n1_result, time, bed_properties, column_grid):
+    bed_voidage = bed_properties["bed_voidage"]
+    column_area = bed_properties["column_area"]
+    R = bed_properties["R"]
+    z = column_grid["xCentres"][1:-1]  # Use correct key name
+    
+    # F_result should have shape (8, n_time_points)
+    # Integrate over time for inlet and outlet flows
+    mole_in = scipy.integrate.trapezoid(F_result[0, :], time)
+    mole_out = scipy.integrate.trapezoid(F_result[1, :], time)  # Assuming F[1] is outlet flow
+    
+    # Calculate mole accumulation (difference between final and initial states)
+    # Integrate over space (z direction) for final and initial states
+    final_moles = scipy.integrate.trapezoid(
+        (bed_voidage * column_area * P_result[:, -1] * y1_result[:, -1] / (R * T_result[:, -1])
+         + (1 - bed_voidage) * column_area * n1_result[:, -1]), z)
+    
+    initial_moles = scipy.integrate.trapezoid(
+        (bed_voidage * column_area * P_result[:, 0] * y1_result[:, 0] / (R * T_result[:, 0])
+         + (1 - bed_voidage) * column_area * n1_result[:, 0]), z)
+    
+    mole_acc = final_moles - initial_moles
+    
+    # Calculate mass balance error as percentage
+    if np.abs(mole_acc) > 1e-12:  # Avoid division by zero
+        mass_balance_error = np.abs(mole_in - mole_out - mole_acc) / np.abs(mole_acc) * 100
+    else:
+        mass_balance_error = np.abs(mole_in - mole_out - mole_acc) * 100
+    
+    return mass_balance_error
+
+
+def energy_balance_error(E_result, T_result, P_result, y1_result, y2_result, n1_result, n2_result, time, bed_properties, column_grid):
+    bed_voidage = bed_properties["bed_voidage"]
+    column_area = bed_properties["column_area"]
+    R = bed_properties["R"]
+    z = column_grid["xCentres"][1:-1]  # Use correct key name
+    Cp_g = 30.0  # Placeholder gas heat capacity J/(mol*K) - replace with actual calculation
+    Cp_solid = bed_properties["solid_heat_capacity"]  # J/(kg*K)
+    Cp_ads = bed_properties["solid_heat_capacity"]  # J/(kg*K)
+    
+    # Heat flows integrated over time
+    heat_in = scipy.integrate.trapezoid(E_result[0, :], time)
+    heat_out = scipy.integrate.trapezoid(E_result[1, :], time)  # Assuming E[1] is heat out
+    
+    # Heat generation from adsorption (integrated over space)
+    deltaH_1 = bed_properties["adsorption_heat_1"] * 1000  # Convert kJ/mol to J/mol
+    deltaH_2 = bed_properties["adsorption_heat_2"] * 1000  # Convert kJ/mol to J/mol
+    
+    heat_gen = ((1 - bed_voidage) * column_area * 
+                scipy.integrate.trapezoid((np.abs(deltaH_1) * (n1_result[:, -1] - n1_result[:, 0]) + 
+                                          np.abs(deltaH_2) * (n2_result[:, -1] - n2_result[:, 0])), z))
+    
+    # Heat accumulation terms (integrated over space)
+    heat_acc_solid = ((1 - bed_voidage) * column_area * Cp_solid * 
+                     scipy.integrate.trapezoid((T_result[:, -1] - T_result[:, 0]), z))
+    
+    heat_acc_gas = (bed_voidage * column_area * Cp_g * 
+                   scipy.integrate.trapezoid((P_result[:, -1] / (R * T_result[:, -1]) * T_result[:, -1] - 
+                                            P_result[:, 0] / (R * T_result[:, 0]) * T_result[:, 0]), z))
+    
+    heat_acc_adsorbed = ((1 - bed_voidage) * column_area * Cp_ads * 
+                        scipy.integrate.trapezoid(((n1_result[:, -1] + n2_result[:, -1]) * T_result[:, -1] - 
+                                                  (n1_result[:, 0] + n2_result[:, 0]) * T_result[:, 0]), z))
+    
+    total_heat_out = heat_out + heat_acc_solid + heat_acc_gas + heat_acc_adsorbed
+    
+    if np.abs(total_heat_out) > 1e-12:  # Avoid division by zero
+        energy_balance_error = (np.abs(heat_in + heat_gen - total_heat_out) / 
+                               np.abs(total_heat_out) * 100)
+    else:
+        energy_balance_error = np.abs(heat_in + heat_gen - total_heat_out) * 100
+    
+    return energy_balance_error 
+
+def calculate_axial_dispersion_coefficient(bed_properties, inlet_values):
+    # Example function to calculate axial dispersion coefficient
+    # This is a placeholder and should be replaced with actual calculations or data
+    D_m = 1.60e-5  # m^2/s for molecular diffusion coefficient
+    v_0 = inlet_values["velocity"]
+    d_p = bed_properties["particle_diameter"]  # m, particle diameter
+    D_l = 0.7 * D_m * (0.5*v_0* d_p)
+    return D_l
