@@ -14,7 +14,7 @@ The components are (1) CO2, (2) H2O, (3) N2 and (4) O2."""
 
 column_grid = create_non_uniform_grid()
 
-# define fixed bed properties
+# Define fixed bed properties
 bed_properties = {
     "bed_voidage": 0.4,  # Example value for bed voidage
     "particle_diameter": 0.0075,  # Example value for particle diameter in meters
@@ -45,7 +45,7 @@ bed_properties = {
     "mu": 1.78e-5,  # Example value for feed viscosity in Pa.s
 }
 
-#define bed inlet values (subject to variation)
+# Define bed inlet values (subject to variation)
 inlet_values = {
     "inlet_type": "mass_flow",
     "velocity": 0.1,  # Example value for superficial velocity in m/s
@@ -60,7 +60,7 @@ inlet_values = {
     "y3_feed_value": 0.94,  # Example value for feed mole fraction
 }
 
-# define bed outlet values (subject to variation)
+# Define bed outlet values (subject to variation)
 outlet_values = {
     "outlet_type": "pressure",
     "outlet_pressure": 101325,  # Example value for outlet pressure in Pa
@@ -68,12 +68,12 @@ outlet_values = {
     "mu": 1.8e-5,  # Example value for outlet viscosity in Pa.s
 }
 
-# initial values for the column
+# Initial values for the column
 P = np.ones(column_grid["num_cells"]) * 101325  # Example pressure vector in Pa
 T = np.ones(column_grid["num_cells"]) * 298  # Example temperature vector in K
 Tw = np.ones(column_grid["num_cells"]) * 298  # Example wall temperature vector in K
 y1 = np.ones(column_grid["num_cells"]) * 420e-6  # Example mole fraction of component 1
-y2 = np.ones(column_grid["num_cells"]) * 1e-6  # Example mole fraction of component 2
+y2 = np.ones(column_grid["num_cells"]) * 100e-6  # Example mole fraction of component 2
 y3 = np.ones(column_grid["num_cells"]) * 0.78  # Example mole fraction of component 3
 n1 = adsorption_isotherm_1(P, T, y1, y2)[0]  # Example concentration vector for component 1 in mol/m^3
 n2 = adsorption_isotherm_2(P, T, y2)[0]  # Example concentration vector for component 2 in mol/m^3
@@ -81,21 +81,26 @@ F = np.zeros(8)
 E = np.zeros(2)  # Additional variables (e.g., flow rates, mass balances)
 initial_conditions = np.concatenate([P, T, Tw, y1, y2, y3, n1, n2, F, E])
 
-#Running simulation!
+# Running simulation! ======================================================================================================
 
 # Implement solver
 t_span = [0, 10]  # Time span for the ODE solver
-#rtol = 1e-6
-#atol_P = 1e-2 * np.ones(len(P))
-#atol_y1 = 1e-9 * np.ones(len(y1))
-#atol_n1 = 1e-3 * np.ones(len(n1))
-#atol_n2 = 1e-3 * np.ones(len(n2))
-#atol_F = 1e-4 * np.ones(len(F))
-#atol_array = np.concatenate([atol_P, atol_y1, atol_n1, atol_n2, atol_F])
+rtol = 1e-6
+atol_P = 1e-2 * np.ones(len(P))
+atol_T = 1e-4 * np.ones(len(T))
+atol_Tw = 1e-4 * np.ones(len(Tw))
+atol_y1 = 1e-9 * np.ones(len(y1))
+atol_y2 = 1e-9 * np.ones(len(y1))
+atol_y3 = 1e-9 * np.ones(len(y1))
+atol_n1 = 1e-3 * np.ones(len(n1))
+atol_n2 = 1e-3 * np.ones(len(n2))
+atol_F = 1e-4 * np.ones(len(F))
+atol_E = 1e-4 * np.ones(len(E))
+atol_array = np.concatenate([atol_P, atol_T, atol_Tw, atol_y1, atol_y2, atol_y3, atol_n1, atol_n2, atol_F, atol_E])
 t0=time.time()
 def ODE_func(t, results_vector):
     return ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=bed_properties, inlet_values=inlet_values, outlet_values=outlet_values)
-output_matrix = solve_ivp(ODE_func, t_span, initial_conditions, method='BDF')
+output_matrix = solve_ivp(ODE_func, t_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array)
 t1=time.time()
 total_time = t1 - t0
     
@@ -162,7 +167,7 @@ plt.legend(fontsize=11)
 plt.grid(True, alpha=0.3)
 
 # Show the plot
-plt.show()
+#plt.show()
 
 # Create the plot for temperature against time
 plt.figure(figsize=(6, 4))
@@ -185,7 +190,7 @@ plt.legend(fontsize=11)
 plt.grid(True, alpha=0.3)
 
 # Show the plot
-plt.show()
+#plt.show()
 
 plt.figure(figsize=(6, 4))
 data13 = n1_result[0]
@@ -207,7 +212,7 @@ plt.legend(fontsize=11)
 plt.grid(True, alpha=0.3)
 
 # Show the plot
-plt.show()
+#plt.show()
 
 # Create the plot for temperature against time
 plt.figure(figsize=(6, 4))
@@ -230,6 +235,6 @@ plt.legend(fontsize=11)
 plt.grid(True, alpha=0.3)
 
 # Show the plot
-plt.show()
+#plt.show()
 
 # Create the plot for temperature against time

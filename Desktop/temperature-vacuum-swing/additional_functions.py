@@ -113,15 +113,10 @@ def calculate_wall_thermal_conductivity():
     wall_conductivity = 16  # W/(m*K*s) for the wall material
     return wall_conductivity
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 67cf9aad638f4a7878a7952f190b578a100f572b
 def mass_balance_error(F_result, P_result, T_result, y1_result, n1_result, time, bed_properties, column_grid):
     bed_voidage = bed_properties["bed_voidage"]
     column_area = bed_properties["column_area"]
     R = bed_properties["R"]
-<<<<<<< HEAD
     z = column_grid["xCentres"][1:-1]  # Use correct key name
     
     # F_result should have shape (8, n_time_points)
@@ -201,18 +196,9 @@ def calculate_axial_dispersion_coefficient(bed_properties, inlet_values):
     d_p = bed_properties["particle_diameter"]  # m, particle diameter
     D_l = 0.7 * D_m * (0.5*v_0* d_p)
     return D_l
-=======
-    z = column_grid["xCentres"]
-    mole_in = scipy.integrate.trapezoid(F_result[0], time)
-    mole_out = scipy.integrate.trapezoid(F_result[-1], time)
-    mole_acc == (scipy.integrate.trapezoid(
-        (bed_voidage* column_area * P_result[-1,:] * y1_result[-1,:] / (R * T_result[-1,:])
-        + (1-bed_voidage)*column_area * n1_result[-1,:]), z)
-        -scipy.integrate.trapezoid(
-        (bed_voidage* column_area * P_result[0,:] * y1_result[0,:] / (R * T_result[0,:])
-        + (1-bed_voidage)*column_area * n1_result[0,:]), z)
-        )
-        # check indexing / orientation of array
-    mass_balance_error = np.abs(mole_in - mole_out - mol_acc)/mole_acc*100
-    return mass_balance_error
->>>>>>> 67cf9aad638f4a7878a7952f190b578a100f572b
+
+def calculate_gas_density():
+    # Example function to calculate gas density
+    # This is a placeholder and should be replaced with actual calculations or data
+    rho_gas = 1.225  # kg/m^3 for air at room temperature and pressure
+    return rho_gas
