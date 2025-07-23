@@ -24,19 +24,20 @@ bed_properties = {
     "R": 8.314,  # Universal gas constant in J/(mol*K)
     "T_column": 298,  # Column temperature in Kelvin
     "rho_bed": 55.4,  # Example value for bed density in kg/m^3
-    "wall_density": 1000,  # Example value for wall density in kg/m^3
+    "wall_density": 7800,  # Example value for wall density in kg/m^3 (Haghpanagh et al. 2013)
     "sorbent_mass": 0.4* 0.08**2 * np.pi / 4 * 0.01 * 55.4,  # Example value for sorbent mass in kg
     "bed_length": 0.01,  # Example value for bed length in meters
-    "wall_heat_capacity": 4 * 10**6, # J /m^3/K, # Example value for wall heat capacity
+    "wall_heat_capacity": 502, # J /kg/K, # Example value for wall heat capacity (Haghpanagh et al. 2013)
     "wall_conductivity" : 16, # K_w, J/m.K.s
-    "solid_heat_capacity": 2070, # J /kg/K, # Example value for solid heat capacity
+    "sorbent_density": 1130, #kg/m3, 55.4 (Haghpanagh et al. 2013)
+    "sorbent_heat_capacity": 1070, # J /kg/K, # Example value for solid heat capacity
     "heat_transfer_coefficient": 3,  # Example value for heat transfer coefficient in W/(m^2*K)
     "heat_transfer_coefficient_wall": 26,  # Example value for wall heat transfer coefficient in W/(m^2*K)
     "adsorption_heat_1": -57,  # Example value for adsorption heat of component 1 (CO2) in kJ/mol
-    "heat_capacity_1": 42.46,  # Example value for heat capacity of component 1 (CO2) in J/(mol*K)
+    "heat_capacity_1": 30.7 ,  # Example value for adsorbed phase heat capacity of component 1 (CO2) in J/(mol*K) (Haghpanagh et al. 2013)
     "mass_transfer_1": 0.0002,  # Example value for mass transfer coefficient of component 1 (CO2) in s-1
     "adsorption_heat_2": -49,  # Example value for adsorption heat of component 2 (H2O) in kJ/mol
-    "heat_capacity_2": 73.1,  # Example value for heat capacity of component 2 (H2O) in J/(mol*K)
+    "heat_capacity_2": 30.7,  # Example value for adsorbed phase heat capacity of component 2 (H2O) in J/(mol*K) (Haghpanagh et al. 2013)
     "mass_transfer_2": 0.002,  # Example value for mass transfer coefficient of component 2 (H2O) in s-1
     "MW_1": 44.01,  # Molecular weight of component 1 (CO2) in g/mol
     "MW_2": 18.02,  # Molecular weight of component 2 (H2O) in g/mol
@@ -212,7 +213,7 @@ plt.legend(fontsize=11)
 plt.grid(True, alpha=0.3)
 
 # Show the plot
-#plt.show()
+plt.show()
 
 # Create the plot for temperature against time
 plt.figure(figsize=(6, 4))
@@ -235,6 +236,6 @@ plt.legend(fontsize=11)
 plt.grid(True, alpha=0.3)
 
 # Show the plot
-#plt.show()
+plt.show()
 
 # Create the plot for temperature against time

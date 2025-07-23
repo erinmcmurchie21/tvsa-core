@@ -63,7 +63,8 @@ def adsorption_isotherm_1(pressure, temperature, mole_fraction_1, mole_fraction_
     n_s = 2.38 * np.exp(0 * (1-temperature/T_0)) # adsorption equilibrium constant mol/kg
     b = 70.74 / 1000 * np.exp(-57.047 * 1000 / (8.314 * T_0) * (T_0 / temperature -1) ) #kPa^-1
     t = 0.4148 + -1.606*(1-T_0/temperature)
-    equilibrium_loading = n_s*b*pressure*mole_fraction_1 / (1+(b*pressure*mole_fraction_1)**t)**(1/t)
+    sorbent_density = 55.4 # kg/m3
+    equilibrium_loading = n_s*b*pressure*mole_fraction_1 / (1+(b*pressure*mole_fraction_1)**t)**(1/t) # * sorbent_density
     adsorption_heat_1 = -57
     return equilibrium_loading, adsorption_heat_1
 
@@ -72,17 +73,19 @@ def adsorption_isotherm_2(pressure, temperature, mole_fraction):
     K_ads = 0.5751 # adsorption equilibrium constant
     c_m = 36.48 #mol/kg
     c_G = 0.1489
+    sorbent_density = 55.4 # kg/m3
     saturation_pressure = 6.1094 * np.exp(17.625 * (temperature - 273.15) / ((temperature-273.15) + 243.04))  # hPa (100 Pa), saturation pressure of water vapor
     RH = mole_fraction*pressure/(saturation_pressure*100) # Relative humidity
     R = 8.314 # J/(mol*K)
-    equilibrium_loading = c_m * c_G * K_ads * RH / ((1 - K_ads * RH)*(1+(c_G-1)*K_ads*RH))
+    equilibrium_loading = c_m * c_G * K_ads * RH / ((1 - K_ads * RH)*(1+(c_G-1)*K_ads*RH)) # * sorbent_density
     adsorption_heat_2 = -49  # kJ/mol
     return equilibrium_loading, adsorption_heat_2
 
 def calculate_gas_heat_capacity():
     # Example function to calculate gas heat capacity
     # This is a placeholder and should be replaced with actual calculations or data
-    Cp_g = 29.19  # J/(mol*K) for air at room temperature
+    #Cp_g = 29.19  # J/(mol*K) for air at room temperature
+    Cp_g = 1200 # J/m3 K 
     return Cp_g
 
 def heat_transfer_coefficient():
@@ -97,7 +100,7 @@ def calculate_gas_viscosity():
 def calculate_gas_thermal_conductivity():
     # Example function to calculate gas thermal conductivity
     # This is a placeholder and should be replaced with actual calculations or data
-    K_z = 0.09  # W/(m*K*s) for air at room temperature
+    K_z = 0.09  # W/(m*K) for air at room temperature
     return K_z
 
 def calculate_gas_mass_transfer():
@@ -110,7 +113,7 @@ def calculate_gas_mass_transfer():
 def calculate_wall_thermal_conductivity():
     # Example function to calculate wall thermal conductivity
     # This is a placeholder and should be replaced with actual calculations or data
-    wall_conductivity = 16  # W/(m*K*s) for the wall material
+    wall_conductivity = 16  # W/(m*K) for the wall material
     return wall_conductivity
 
 def mass_balance_error(F_result, P_result, T_result, y1_result, n1_result, time, bed_properties, column_grid):
@@ -150,9 +153,9 @@ def energy_balance_error(E_result, T_result, P_result, y1_result, y2_result, n1_
     column_area = bed_properties["column_area"]
     R = bed_properties["R"]
     z = column_grid["xCentres"][1:-1]  # Use correct key name
-    Cp_g = 30.0  # Placeholder gas heat capacity J/(mol*K) - replace with actual calculation
-    Cp_solid = bed_properties["solid_heat_capacity"]  # J/(kg*K)
-    Cp_ads = bed_properties["solid_heat_capacity"]  # J/(kg*K)
+    Cp_g = calculate_gas_heat_capacity()  # Placeholder gas heat capacity J/(mol*K) - replace with actual calculation
+    Cp_solid = bed_properties["sorbent_heat_capacity"]  # J/(kg*K)
+    Cp_ads = bed_properties["heat_capacity_1"]  # J/(kg*K)
     
     # Heat flows integrated over time
     heat_in = scipy.integrate.trapezoid(E_result[0, :], time)

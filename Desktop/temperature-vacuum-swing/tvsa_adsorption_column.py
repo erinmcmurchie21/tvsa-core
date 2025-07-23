@@ -306,7 +306,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
 
     # Heat transfer
     Cp_g = func.calculate_gas_heat_capacity()
-    Cp_solid = bed_properties["solid_heat_capacity"]
+    Cp_solid = bed_properties["sorbent_heat_capacity"]
     Cp_1 = bed_properties["heat_capacity_1"]
     Cp_2 = bed_properties["heat_capacity_2"]
     K_z = func.calculate_gas_thermal_conductivity()
@@ -318,15 +318,16 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     #Column energy balance
     q1 = n1 * bed_properties["rho_bed"]/(1-bed_properties["bed_voidage"])
     q2 = n2 * bed_properties["rho_bed"]/(1-bed_properties["bed_voidage"])
-    a_2 = (1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * (Cp_solid * bed_properties["rho_bed"] + Cp_1 * q1 + Cp_2 * q2) + Cp_g * P/(bed_properties["R"] * T)
+    a_2 = (1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * (Cp_solid * bed_properties["sorbent_density"] + Cp_1 * q1 + Cp_2 * q2) + Cp_g * P/(bed_properties["R"] * T)
     dTdt = 1/a_2 * (
         K_z/bed_properties["bed_voidage"] * (1/(column_grid["deltaZ"][1:-1]) * (dTdz_walls[1:num_cells+1] - dTdz_walls[:num_cells])) 
-        - Cp_g/(bed_properties["R"] * column_grid["deltaZ"][1:-1]) * (v_walls[1:num_cells+1] * P_walls[1:num_cells+1] - v_walls[:num_cells] * P_walls[:num_cells]) -
-        Cp_g/bed_properties["R"]*(-(1-bed_properties["bed_voidage"])/bed_properties["bed_voidage"] *bed_properties["R"] * T * (dn1dt + dn2dt) 
-        - T/(column_grid["deltaZ"][1:-1]*bed_properties["bed_voidage"]) * (P_walls[1:num_cells+1] * v_walls[1:num_cells+1]/T_walls[1:num_cells+1] - P_walls[:num_cells] * v_walls[:num_cells]/T_walls[:num_cells]))
+        - Cp_g/(bed_properties["R"] * column_grid["deltaZ"][1:-1]) * (v_walls[1:num_cells+1] * P_walls[1:num_cells+1] - v_walls[:num_cells] * P_walls[:num_cells]) 
+        + Cp_g/bed_properties["R"]*(-(1-bed_properties["bed_voidage"])/bed_properties["bed_voidage"] *bed_properties["R"] * T * (dn1dt + dn2dt) 
+        - T/(column_grid["deltaZ"][1:-1]*bed_properties["bed_voidage"]) * (P_walls[1:num_cells+1] * v_walls[1:num_cells+1]/T_walls[1:num_cells+1] 
+                                                                           - P_walls[:num_cells] * v_walls[:num_cells]/T_walls[:num_cells]))
         + (1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * (np.abs(deltaH_1) * dn1dt + np.abs(deltaH_2) * dn2dt)
-        + (1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * T * (Cp_1 * dn1dt + Cp_2 * dn2dt)
-        + 2 * h_bed * (T - Tw) / (bed_properties["bed_voidage"] * bed_properties["inner_bed_diameter"]) )
+        - (1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * T * (Cp_1 * dn1dt + Cp_2 * dn2dt)
+        - 2 * h_bed * (T - Tw) / (bed_properties["bed_voidage"] * bed_properties["inner_bed_diameter"]) )
     # \frac{\partial T}{\partial t} = \frac{1}{a_2}\left[
     # \frac{K_z}{\varepsilon \Delta z}\left(\frac{\partial T}{\partial z}|_{i+1/2} - \frac{\partial T}{\partial z}|_{i-1/2}\right) - \frac{C_{p,g}}{R \Delta z} \left(P_{i+1/2} \ v_{i+1/2} - P_{i-1/2}v_{i-1/2} \right) \right.\\
     # - \frac{C_{p,g}}{R} \left( - \dfrac{(1-\varepsilon)}{\varepsilon}{RT} \left(\frac{\partial q_1}{\partial t}+\frac{\partial q_2}{\partial t}\right) - \frac{1}{\varepsilon} \frac{T}{\Delta z} \left( \frac{P_{i+1/2} \ v_{i+1/2}}{T_{i+1/2}}-\frac{P_{i-1/2} \ v_{i-1/2}}{T_{i-1/2}} \right) \right) \\ \left. + \frac{1-\varepsilon}{\varepsilon} \left(  \Delta H_1 \frac{\partial q_1}{\partial t} +\Delta H_2 \frac{\partial q_2}{\partial t}\right)
@@ -344,9 +345,10 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     d2Twdt2 = 1/(column_grid["deltaZ"][1:-1]) *(dTwdz_walls[1:num_cells+1] - dTwdz_walls[:num_cells])
 
     dTwdt = 1 / (bed_properties["wall_heat_capacity"] * bed_properties["wall_density"]) * (
-        K_wall * d2Twdt2 - 2 * bed_properties["inner_bed_diameter"] * h_bed * (T - Tw) /
-        (bed_properties["outer_bed_diameter"]**2 - bed_properties["inner_bed_diameter"]**2) -
-        2 * bed_properties["outer_bed_diameter"] * h_wall * (Tw - inlet_values["feed_temperature"]) /
+        K_wall * d2Twdt2 
+        + 2 * bed_properties["inner_bed_diameter"] * h_bed * (T - Tw) /
+        (bed_properties["outer_bed_diameter"]**2 - bed_properties["inner_bed_diameter"]**2) 
+        - 2 * bed_properties["outer_bed_diameter"] * h_wall * (Tw - inlet_values["feed_temperature"]) /
         (bed_properties["outer_bed_diameter"]**2 - bed_properties["inner_bed_diameter"]**2) )
     #"""\frac{\partial T_w}{\partial t} =
     #\frac{1}{\rho_w \ C_{p,wall}} \left(\frac{K_{wall}}{\Delta z}\left(\frac{\partial T_w}{\partial z}|_{i+1/2} - \frac{\partial T_w}{\partial z}|_{i-1/2}\right) 
@@ -354,12 +356,12 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     
 
     # Component mass balances
-    dy1dt = (-y1/P*dPdt + y1/T*dTdt - 
-            (1-bed_properties["bed_voidage"])/bed_properties["bed_voidage"]*bed_properties["R"]*T/P*dn1dt - 
-            1/bed_properties["bed_voidage"]*T/P*1/column_grid["deltaZ"][1:-1]*
+    dy1dt = (-y1/P*dPdt + y1/T*dTdt 
+            - (1-bed_properties["bed_voidage"])/bed_properties["bed_voidage"]*bed_properties["R"]*T/P*dn1dt 
+            - 1/bed_properties["bed_voidage"]*T/P*1/column_grid["deltaZ"][1:-1]*
             (P_walls[1:num_cells+1]*v_walls[1:num_cells+1]*y1_walls[1:num_cells+1]/T_walls[1:num_cells+1] - 
-             P_walls[:num_cells]*v_walls[:num_cells]*y1_walls[:num_cells]/T_walls[:num_cells]) + 
-            D_l * T/P * 1/column_grid["deltaZ"][1:-1] * 
+             P_walls[:num_cells]*v_walls[:num_cells]*y1_walls[:num_cells]/T_walls[:num_cells]) 
+            + D_l * T/P * 1/column_grid["deltaZ"][1:-1] * 
             (P_walls[1:num_cells+1]/T_walls[1:num_cells+1]*(y1_all[2:num_cells+2]-y1_all[1:num_cells+1])/column_grid["deltaZ"][1:num_cells+1] - 
              P_walls[0:num_cells]/T_walls[0:num_cells]*(y1_all[1:num_cells+1]-y1_all[:num_cells])/column_grid["deltaZ"][0:num_cells]))
     #""" \dfrac{\partial y_1}{\partial t} = \dfrac{y_1}{P}\dfrac{\partial P}{\partial t} + \dfrac{y_1}{T}\dfrac{\partial T}{\partial t} 
