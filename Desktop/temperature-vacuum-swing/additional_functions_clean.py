@@ -77,17 +77,17 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2):
         adsorption_heat_1 (J/mol)
     """
     R = 8.314           # J/(mol·K)
-    sorbent_density = 55.4          # kg/m³
+    bed_density = 55.4          # kg/m³
     ε = 0.4             # bed void fraction
 
     T_0 = 296           # Reference temperature (K)
     n_s = 2.38 * np.exp(0 * (1 - temperature / T_0))         # mol/kg
-    b = 0.07074 * np.exp(-57047 / (R * T_0) * (T_0 / temperature - 1))  # kPa⁻¹
+    b = 70.74 * np.exp(-1*(-57047) / (R * T_0) * (1-T_0 / temperature))  # kPa⁻¹
     t = 0.4148 - 1.606 * (1 - T_0 / temperature)
     pressure_kPa = pressure / 1000  # Convert pressure from Pa to kPa
 
     load_kg = n_s * b * pressure_kPa * y1 / (1 + (b * pressure_kPa * y1)**t)**(1 / t)  # mol/kg
-    load_m3 = load_kg * sorbent_density / (1 - ε)  # mol/m³
+    load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
     ΔH = -57047  # J/mol
 
     return load_m3, ΔH
@@ -108,8 +108,10 @@ def adsorption_isotherm_2(pressure, temperature, y2, isotherm_type="GAB"):
         K_ads = 0.5751 # -
         c_m = 36.48 # mol/kg
         c_G = 0.1489 # -
-        P_sat = 10**(5.40221 - 1838.675 / (temperature -31.737)) # Pressure in bar, Bridgeman, O.C.; Aldrich, E.W., Vapor Pressure Tables for Water, J. Heat Transfer, 1964, 86, 2, 279-286, https://doi.org/10.1115/1.3687121 
-        RH = y2 * pressure / (P_sat * 10**5)  # dimensionless
+
+        P_sat = 10**(8.07131-1730.63/(233.426+(temperature-273.15)))  # Pressure in mmHg, Antoine equation for water, Ward et al. 2024
+        P_sat_Pa = P_sat * 133.322  # Convert mmHg to Pa
+        RH = y2 * pressure / (P_sat_Pa)  # dimensionless
 
         load_kg = c_m * c_G * K_ads * RH / ((1 - K_ads * RH) * (1 + (c_G - 1) * K_ads * RH))  # mol/kg
         load_m3 = load_kg * sorbent_density / (1 - ε)  # mol/m³
@@ -162,8 +164,8 @@ def total_mass_balance_error(F, P, T, n1, n2, time, bed_props, grid):
     R = bed_props["R"]
     z = grid["xCentres"][1:-1]
 
-    mole_in = scipy.integrate.trapezoid(np.sum(F[:4, :], axis=0), time)
-    mole_out = scipy.integrate.trapezoid(np.sum(F[4:8, :], axis=0), time)
+    mole_in = np.sum(F[:4, -1])
+    mole_out = np.sum(F[4:8, -1])
 
     n_acc_final = ε * A * P[:, -1] / (R * T[:, -1]) + (1 - ε) * A * (n1[:, -1] + n2[:, -1])
     n_acc_init = ε * A * P[:, 0] / (R * T[:, 0]) + (1 - ε) * A * (n1[:, 0] + n2[:, 0])
@@ -180,8 +182,8 @@ def CO2_mass_balance_error(F, P, T, y1, n1, time, bed_props, grid):
     R = bed_props["R"]
     z = grid["xCentres"][1:-1]
 
-    mole_in = scipy.integrate.trapezoid(F[0, :], time)
-    mole_out = scipy.integrate.trapezoid(F[4, :], time)
+    mole_in = F[0, -1]
+    mole_out = F[4,-1]
 
     n_acc_final = ε * A * P[:, -1] * y1[:, -1] / (R * T[:, -1]) + (1 - ε) * A * n1[:, -1]
     n_acc_init = ε * A * P[:, 0] * y1[:, 0] / (R * T[:, 0]) + (1 - ε) * A * n1[:, 0]
@@ -199,10 +201,13 @@ def energy_balance_error(E, T, P, y1, y2, n1, n2, time, bed_props, grid):
     z = grid["xCentres"][1:-1]
     Cp_g = calculate_gas_heat_capacity()
     Cp_s = bed_props["sorbent_heat_capacity"]
+    solid_density = bed_props["sorbent_density"] / (1- ε)  # kg/m³
+    Cp_1 = bed_props["heat_capacity_1"] # J/(mol*K)
+    Cp_2 = bed_props["heat_capacity_2"] # J/(mol*K)
 
     # Energy terms
-    heat_in = scipy.integrate.trapezoid(E[0, :], time)
-    heat_out = scipy.integrate.trapezoid(E[1, :], time)
+    heat_in = E[0, -1]
+    heat_out = E[1, -1]
 
     ΔH1 = adsorption_isotherm_1(P[:, -1], T[:, -1], y1[:, -1], y2[:, -1])[1]
     ΔH2 = adsorption_isotherm_2(P[:, -1], T[:, -1], y2[:, -1])[1]
@@ -211,11 +216,11 @@ def energy_balance_error(E, T, P, y1, y2, n1, n2, time, bed_props, grid):
         np.abs(ΔH1) * (n1[:, -1] - n1[:, 0]) +
         np.abs(ΔH2) * (n2[:, -1] - n2[:, 0]), z)
 
-    heat_acc_solid = (1 - ε) * A * Cp_s * scipy.integrate.trapezoid((T[:, -1] - T[:, 0]), z)
+    heat_acc_solid = (1 - ε) * A * Cp_s * solid_density * scipy.integrate.trapezoid((T[:, -1] - T[:, 0]), z)
     heat_acc_gas = ε * A * Cp_g * scipy.integrate.trapezoid(
         P[:, -1]/(R*T[:, -1]) * T[:, -1] - P[:, 0]/(R*T[:, 0]) * T[:, 0], z)
-    heat_acc_adsorbed = (1 - ε) * A * Cp_s * scipy.integrate.trapezoid(
-        (n1[:, -1] + n2[:, -1]) * T[:, -1] - (n1[:, 0] + n2[:, 0]) * T[:, 0], z)
+    heat_acc_adsorbed = (1 - ε) * A * scipy.integrate.trapezoid(
+        (Cp_1*n1[:, -1] + Cp_2*n2[:, -1]) * T[:, -1] - (Cp_1*n1[:, 0] + Cp_2*n2[:, 0]) * T[:, 0], z)
 
     total_out = heat_out + heat_acc_solid + heat_acc_gas + heat_acc_adsorbed
     return np.abs(heat_in + heat_gen - total_out) / np.abs(total_out) * 100
