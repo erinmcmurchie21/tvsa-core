@@ -460,11 +460,11 @@ def calculate_internal_wall_values(P_all, T_all, Tw_all, y1_all, y2_all, y3_all,
 
 
     rho_gas_walls = P_walls / bed_properties["R"] / T_walls  # Assuming ideal gas law for density calculation
-    avg_density_walls = rho_gas_walls * (bed_properties["MW_1"] * y1_walls + bed_properties["MW_2"]*(y2_walls) + 
-                                              bed_properties["MW_3"]*(y3_walls)+ bed_properties["MW_4"]*(1-y1_walls-y2_walls-y3_walls))
+    avg_density_walls = rho_gas_walls / 1000 * (bed_properties["MW_1"] * y1_walls + bed_properties["MW_2"]*(y2_walls) + 
+                                              bed_properties["MW_3"]*(y3_walls)+ bed_properties["MW_4"]*(1-y1_walls-y2_walls-y3_walls)) # Factor of 1000 to convert from g/mol to kg/mol
     mu = func.calculate_gas_viscosity()
     a = 1.75 * (1- bed_properties["bed_voidage"]) * avg_density_walls / (bed_properties["bed_voidage"]**3 * bed_properties["particle_diameter"])
-    b = 12 * mu * (1-bed_properties["bed_voidage"])**2 / (bed_properties["bed_voidage"]**3 * bed_properties["particle_diameter"]**2)
+    b = 150 * mu * (1-bed_properties["bed_voidage"])**2 / (bed_properties["bed_voidage"]**3 * bed_properties["particle_diameter"]**2)
     c = np.abs(dPdz_walls[:])
     dominant = b**2+4*a*c
         
