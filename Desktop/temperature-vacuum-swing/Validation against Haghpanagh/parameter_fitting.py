@@ -11,6 +11,7 @@ import run_adsorption_cycle_validation as run
 # Option 1: If your CSV has comma delimiters
 t_observed = np.loadtxt('pini_data.csv', delimiter=',', usecols=0)  # First column
 temperature_observed = np.loadtxt('pini_data.csv', delimiter=',', usecols=1)  # Second column
+temperature_observed = temperature_observed + 273.15
 
 
 bed_properties, column_grid, initial_conditions, rtol, atol_array = run.create_fixed_properties()
@@ -29,7 +30,7 @@ simulation_conditions = {
 
 # Create a function to perform parameter fitting
 
-def parameter_fitting(parameters, simulation_conditions, T_observed):
+def parameter_fitting(parameters, simulation_conditions, T_observed, t_observed):
     # Extract variables from simulation_conditions
     column_grid = simulation_conditions["column_grid"]
     original_bed_properties = simulation_conditions["bed_properties"]
@@ -54,7 +55,7 @@ def parameter_fitting(parameters, simulation_conditions, T_observed):
         def ODE_func(t, results_vector):
             return column.ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=bed_properties, inlet_values=inlet_values, outlet_values=outlet_values)
         
-        output_matrix = solve_ivp(ODE_func, time_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array)
+        output_matrix = solve_ivp(ODE_func, time_span, initial_conditions, method='BDF', t_eval=t_observed, rtol=rtol, atol=atol_array)
         t1=time.time()
         total_time = t1 - t0
 
@@ -75,11 +76,25 @@ def parameter_fitting(parameters, simulation_conditions, T_observed):
         return column.ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=final_bed_properties, inlet_values=inlet_values, outlet_values=outlet_values)
     output_matrix = solve_ivp(ODE_func, time_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array)
 
-    total_mass_error = total_mass_balance_error(output_matrix.y, column_grid)
-    co2_mass_error = CO2_mass_balance_error(output_matrix.y, column_grid)
-    energy_error = energy_balance_error(output_matrix.y, column_grid)
-
     # Plot the results
     create_plot(output_matrix, column_grid)
 
     return result, output_matrix, final_bed_properties
+
+initial_guess = [20.0, 140.0]
+bounds = [(1, 100), (1, 200)]
+
+output = parameter_fitting(initial_guess, simulation_conditions, temperature_observed)
+output_matrix = output[1]
+time = output_matrix.t
+T_fitted = output_matrix.y[column_grid["num_cells"]:2*column_grid["num_cells"]]
+print(f"Fitted heat transfer coefficients: {output[0].x}")
+
+plt.figure(figsize=(6, 4))
+plt.plot(time, T_fitted, label="Fitted", linewidth=2, marker='o', markersize=3)
+plt.plot(t_observed, temperature_observed, label="Observed", linestyle='--', linewidth=2, marker='x', markersize=3)
+plt.xlabel('Time', fontsize=12)
+plt.ylabel('Temperature / K', fontsize=12)
+plt.legend(fontsize=11)
+plt.grid(True, alpha=0.3)
+plt.show()
