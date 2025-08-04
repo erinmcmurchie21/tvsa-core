@@ -49,7 +49,7 @@ def parameter_fitting(parameters, simulation_conditions, T_observed, t_observed)
         bed_properties["h_bed"], bed_properties["h_wall"] = params
         
         # Solve the system of ODEs
-        time_span = (0, t_observed[-1])  # Use the last time point from the observed data
+        time_span = (0, t_observed[-1]) # Use the last time point from the observed data
         
         t0=time.time()
         def ODE_func(t, results_vector):
@@ -74,7 +74,7 @@ def parameter_fitting(parameters, simulation_conditions, T_observed, t_observed)
     time_span = (0, t_observed[-1])
     def ODE_func(t, results_vector):
         return column.ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=final_bed_properties, inlet_values=inlet_values, outlet_values=outlet_values)
-    output_matrix = solve_ivp(ODE_func, time_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array)
+    output_matrix = solve_ivp(ODE_func, time_span, initial_conditions, method='BDF', t_eval=t_observed, rtol=rtol, atol=atol_array)
 
     # Plot the results
     create_plot(output_matrix, column_grid)
@@ -84,7 +84,7 @@ def parameter_fitting(parameters, simulation_conditions, T_observed, t_observed)
 initial_guess = [20.0, 140.0]
 bounds = [(1, 100), (1, 200)]
 
-output = parameter_fitting(initial_guess, simulation_conditions, temperature_observed)
+output = parameter_fitting(initial_guess, simulation_conditions, temperature_observed, t_observed)
 output_matrix = output[1]
 time = output_matrix.t
 T_fitted = output_matrix.y[column_grid["num_cells"]:2*column_grid["num_cells"]]
