@@ -583,7 +583,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     # Thermal conductivities and heat transfer coefficients
     K_z = func.calculate_gas_thermal_conductivity()
     K_wall = func.calculate_wall_thermal_conductivity()
-    h_bed, h_wall = func.heat_transfer_coefficient()
+    h_bed, h_wall = bed_properties["h_bed"], bed_properties["h_wall"]  # Heat transfer coefficients (W/m²*K)
     
     # Axial dispersion coefficient
     D_l = func.calculate_axial_dispersion_coefficient(bed_properties, inlet_values)
@@ -751,3 +751,75 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     derivatives = np.concatenate([dPdt, dTdt, dTwdt, dy1dt, dy2dt, dy3dt, dn1dt, dn2dt, dFdt, dEdt]) 
     
     return derivatives
+
+
+def final_wall_values(column_grid, bed_properties, inlet_values, outlet_values, output_matrix):
+    """
+    Calculate wall values for each time step in the adsorption column simulation.
+    
+    Returns:
+        Arrays with shape (n_walls, n_timesteps) for each wall variable.
+    """
+    import numpy as np
+
+    # Initialize lists to accumulate time series
+    P_walls_ = []
+    T_walls_ = []
+    Tw_walls_ = []
+    y1_walls_ = []
+    y2_walls_ = []
+    y3_walls_ = []
+    v_walls_ = []
+
+    num_cells = column_grid["num_cells"]
+    num_timesteps = output_matrix.t.shape[0]
+
+    for t in range(num_timesteps):
+        # Get state vector at timestep t
+
+        # Unpack variables from the state
+        P, T, Tw, y1, y2, y3, n1, n2, F, E = data_prep(output_matrix.y[:, t], num_cells)
+
+        # Boundary conditions
+        (P_inlet, T_inlet, Tw_inlet, y1_inlet, y2_inlet, y3_inlet, 
+         v_inlet, dPdz_inlet, dTwdz_inlet) = inlet_boundary_conditions(
+             P, T, Tw, y1, y2, y3, column_grid, bed_properties, inlet_values)
+
+        (P_outlet, T_outlet, Tw_outlet, y1_outlet, y2_outlet, y3_outlet, 
+         v_outlet, dPdz_outlet, dTwdz_outlet) = outlet_boundary_conditions(
+             P, T, Tw, y1, y2, y3, column_grid, bed_properties, outlet_values)
+
+        # Ghost cells
+        P_all, T_all, Tw_all, y1_all, y2_all, y3_all = ghost_cell_calculations(
+            P, T, Tw, y1, y2, y3, P_inlet, P_outlet, T_inlet, T_outlet, 
+            Tw_inlet, Tw_outlet, y1_inlet, y1_outlet, y2_inlet, y2_outlet, 
+            y3_inlet, y3_outlet, column_grid)
+
+        # Wall values for this timestep
+        (P_walls, T_walls, Tw_walls, y1_walls, y2_walls, y3_walls, 
+         v_walls, dTdz_walls, dTwdz_walls) = calculate_internal_wall_values(
+            P_all, T_all, Tw_all, y1_all, y2_all, y3_all,
+            P_inlet, P_outlet, T_inlet, T_outlet, Tw_inlet, Tw_outlet,
+            y1_inlet, y1_outlet, y2_inlet, y2_outlet, y3_inlet, y3_outlet, 
+            v_inlet, v_outlet, dPdz_inlet, dPdz_outlet, dTwdz_inlet, dTwdz_outlet,
+            bed_properties, column_grid)
+
+        # Append current timestep wall values
+        P_walls_.append(P_walls)
+        T_walls_.append(T_walls)
+        Tw_walls_.append(Tw_walls)
+        y1_walls_.append(y1_walls)
+        y2_walls_.append(y2_walls)
+        y3_walls_.append(y3_walls)
+        v_walls_.append(v_walls)
+
+    # Convert to arrays of shape (n_walls, n_timesteps)
+    return (
+        np.array(P_walls_).T,
+        np.array(T_walls_).T,
+        np.array(Tw_walls_).T,
+        np.array(y1_walls_).T,
+        np.array(y2_walls_).T,
+        np.array(y3_walls_).T,
+        np.array(v_walls_).T
+    )
