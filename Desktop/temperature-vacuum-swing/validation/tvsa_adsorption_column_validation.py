@@ -94,13 +94,13 @@ def inlet_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties,
             column_grid["xCentres"][column_grid["nGhost"]+1], y1[1],
             column_grid["xWalls"][column_grid["nGhost"]], 
             -np.abs(v_inlet / D_l), inlet_values["y1_feed_value"])
-        
+
         y2_inlet = func.quadratic_extrapolation_derivative_nonzero(
             column_grid["xCentres"][column_grid["nGhost"]], y2[0], 
             column_grid["xCentres"][column_grid["nGhost"]+1], y2[1],
             column_grid["xWalls"][column_grid["nGhost"]], 
             -np.abs(v_inlet / D_l), inlet_values["y2_feed_value"])
-        
+
         y3_inlet = func.quadratic_extrapolation_derivative_nonzero(
             column_grid["xCentres"][column_grid["nGhost"]], y3[0], 
             column_grid["xCentres"][column_grid["nGhost"]+1], y3[1],
@@ -129,7 +129,7 @@ def inlet_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties,
     
         # Calculate inlet temperature using convective boundary condition
         # dT/dz = -(v·Pe_h)(T_feed - T_inlet)
-        Pe_h = v_inlet * bed_properties["inner_bed_radius"] / thermal_diffusivity  # Péclet number
+        Pe_h = bed_properties["bed_voidage"] / thermal_diffusivity  # Péclet number
         T_inlet = func.quadratic_extrapolation_derivative_nonzero(
             column_grid["xCentres"][column_grid["nGhost"]], T[0], 
             column_grid["xCentres"][column_grid["nGhost"]+1], T[1], 
@@ -165,7 +165,6 @@ def inlet_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties,
         T_inlet = func.quadratic_extrapolation_derivative(
             column_grid["xCentres"][column_grid["nGhost"]], T[0], 
             column_grid["xCentres"][column_grid["nGhost"]+1], T[1],
-            column_grid["xCentres"][column_grid["nGhost"]+2], T[2], 
             column_grid["xWalls"][column_grid["nGhost"]])
         
         Tw_inlet = Tw[0]                            
@@ -563,12 +562,14 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     
     # Solid phase balance for adsorbed components
     # ∂q₁/∂t = k₁(q₁* - q₁)
-    dn1dt = k1_validation * (func.adsorption_isotherm_1(P, T, y1, y2, y3, n1, bed_properties, isotherm_type=isotherm_type_1)[0] - n1) # mol / m3
-    deltaH_1 = func.adsorption_isotherm_1(P, T, y1, y2,y3, n1, bed_properties, isotherm_type=isotherm_type_1)[1]  # Heat of adsorption (J/mol)
+    dn1dt = k1_validation * (func.adsorption_isotherm_1(P, T, y1, y2, y3, n1, bed_properties, isotherm_type_1=isotherm_type_1)[0] - n1) # mol / m3
+    deltaH_1 = func.adsorption_isotherm_1(P, T, y1, y2,y3, n1, bed_properties, isotherm_type_1=isotherm_type_1)[1]  # Heat of adsorption (J/mol)
+
 
     # ∂q₂/∂t = k₂(q₂* - q₂)
     dn2dt = 0 * k2 * (func.adsorption_isotherm_2(P, T, y2, bed_properties, isotherm_type=isotherm_type_2)[0] - n2)
     deltaH_2 = func.adsorption_isotherm_2(P, T, y2, bed_properties, isotherm_type=isotherm_type_2)[1]  # Heat of adsorption (J/mol)
+
 
     # =========================================================================
     # TRANSPORT PROPERTIES
@@ -609,12 +610,10 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
                       (v_walls[1:num_cells+1] * P_walls[1:num_cells+1] - 
                        v_walls[:num_cells] * P_walls[:num_cells]))
     
-    accumulation_term = (Cp_g / bed_properties["R"] * 
-                        (-(1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * 
-                         bed_properties["R"] * T * (dn1dt + dn2dt) - 
-                         T / (column_grid["deltaZ"][1:-1] * bed_properties["bed_voidage"]) * 
+    accumulation_term = (-Cp_g * T * (1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * (dn1dt + dn2dt) 
+                         + Cp_g * T / (bed_properties["R"] * (column_grid["deltaZ"][1:-1] )) * 
                          (P_walls[1:num_cells+1] * v_walls[1:num_cells+1] / T_walls[1:num_cells+1] - 
-                          P_walls[:num_cells] * v_walls[:num_cells] / T_walls[:num_cells])))
+                          P_walls[:num_cells] * v_walls[:num_cells] / T_walls[:num_cells]))
     
     adsorption_heat_term = ((1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * 
                            ((np.abs(deltaH_1)) * dn1dt + (np.abs(deltaH_2)) * dn2dt))
@@ -664,7 +663,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     bed_heat_exchange = (2 * bed_properties["inner_bed_radius"] * h_bed * (T - Tw) / 
                         (bed_properties["outer_bed_radius"]**2 - bed_properties["inner_bed_radius"]**2))
     ambient_heat_loss = (-2 * bed_properties["outer_bed_radius"] * h_wall * 
-                        (Tw - inlet_values["feed_temperature"]) / 
+                        (Tw - bed_properties["ambient_temperature"]) / 
                         (bed_properties["outer_bed_radius"]**2 - bed_properties["inner_bed_radius"]**2))
     
     dTwdt = (1 / (bed_properties["wall_heat_capacity"] * bed_properties["wall_density"]) * 
@@ -744,14 +743,13 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     #Inlet and outlet calculations for energy balance error
     dE1dt = (bed_properties["bed_voidage"] * bed_properties["column_area"] * Cp_g * v_walls[0] * T_walls[0] * P_walls[0] / (bed_properties["R"] * T_walls[0]))
     dE2dt = (bed_properties["bed_voidage"] * bed_properties["column_area"] * Cp_g * v_walls[-1] * T_walls[-1] * P_walls[-1] / (bed_properties["R"] * T_walls[-1]))
-    dE3dt = scipy.integrate.trapezoid(bed_properties["wall_density"] * bed_properties["wall_heat_capacity"] * dTwdt, column_grid["xCentres"][1:-1])
+    dE3dt = scipy.integrate.trapezoid(2 * np.pi * bed_properties["outer_bed_radius"] * h_wall * (Tw - bed_properties["ambient_temperature"]), column_grid["xCentres"][1:-1])
     dEdt = np.array([dE1dt, dE2dt, dE3dt])
 
     # Combine derivatives into a single vector
     derivatives = np.concatenate([dPdt, dTdt, dTwdt, dy1dt, dy2dt, dy3dt, dn1dt, dn2dt, dFdt, dEdt]) 
     
     return derivatives
-
 
 def final_wall_values(column_grid, bed_properties, inlet_values, outlet_values, output_matrix):
     """

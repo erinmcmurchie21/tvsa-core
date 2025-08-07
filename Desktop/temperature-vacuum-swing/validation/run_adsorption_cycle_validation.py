@@ -23,6 +23,7 @@ def create_fixed_properties():
     "bed_density": 435,  # Example value for bed density in kg/m^3
     "column_area": 0.00945**2 * np.pi,  # Cross-sectional area of the column
     "sorbent_density": 900, #kg/m3, 55.4 (Haghpanagh et al. 2013)
+    "ambient_temperature": 293.15,  # Example value for ambient temperature in Kelvin
     
     # Properties and constants
     "particle_voidage": 0.59,  # Example value for particle voidage
@@ -38,8 +39,8 @@ def create_fixed_properties():
     "heat_capacity_2":30,  # Example value for adsorbed phase heat capacity of component 2 (H2O)
     "mass_transfer_1": 0.0002,  # Example value for mass transfer coefficient of component 1 (CO2) in s-1
     "mass_transfer_2": 0.002,  # Example value for mass transfer coefficient of component 2 (H2O) in s-1
-    "h_bed": 140,  # Example value for bed heat transfer coefficient in W/m²·K
-    "h_wall": 20,  # Example value for wall heat transfer coefficient in W
+    "h_bed": 0, #140,  # Example value for bed heat transfer coefficient in W/m²·K
+    "h_wall": 0, #20,  # Example value for wall heat transfer coefficient in W
     "MW_1": 44.01,  # Molecular weight of component 1 (CO2) in g/mol
     "MW_2": 18.02,  # Molecular weight of component 2 (H2O) in g/mol
     "MW_3": 28.02,  # Molecular weight of component 3 (N2) in g/mol
@@ -57,21 +58,21 @@ def create_fixed_properties():
     y1 = np.ones(column_grid["num_cells"]) * 1e-6  # Example mole fraction of component 1
     y2 = np.ones(column_grid["num_cells"]) * 1e-6 # Example mole fraction of component 2
     y3 = np.ones(column_grid["num_cells"]) * 0.95  # Example mole fraction of component 3
-    n1 = adsorption_isotherm_1(P, T, y1, y2, y3, 1e-6, bed_properties=bed_properties, isotherm_type=bed_properties["isotherm_type_1"])[0]  # Example concentration vector for component 1 in mol/m^3
+    n1 = adsorption_isotherm_1(P, T, y1, y2, y3, 1e-6, bed_properties=bed_properties, isotherm_type_1=bed_properties["isotherm_type_1"])[0]  # Example concentration vector for component 1 in mol/m^3
     n2 = adsorption_isotherm_2(P, T, y2, bed_properties=bed_properties, isotherm_type=bed_properties["isotherm_type_2"])[0]# Example concentration vector for component 2 in mol/m^3
     F = np.zeros(8)
     E = np.zeros(3)  # Additional variables (e.g., flow rates, mass balances)
     initial_conditions = np.concatenate([P, T, Tw, y1, y2, y3, n1, n2, F, E])
 
     rtol = 1e-4
-    atol_P = 1e-2 * np.ones(len(P))
-    atol_T = 1e-3 * np.ones(len(T))
-    atol_Tw = 1e-4 * np.ones(len(Tw))
+    atol_P = 1e-5 * np.ones(len(P))
+    atol_T = 1e-8 * np.ones(len(T))
+    atol_Tw = 1e-5 * np.ones(len(Tw))
     atol_y1 = 1e-7 * np.ones(len(y1))
     atol_y2 = 1e-7 * np.ones(len(y2))
     atol_y3 = 1e-7 * np.ones(len(y3))
-    atol_n1 = 1e-2 * np.ones(len(n1))
-    atol_n2 = 1e-2 * np.ones(len(n2))
+    atol_n1 = 1e-3 * np.ones(len(n1))
+    atol_n2 = 1e-3 * np.ones(len(n2))
     atol_F = 1e-4 * np.ones(len(F))
     atol_E = 1e-4 * np.ones(len(E))
     atol_array = np.concatenate([atol_P, atol_T, atol_Tw, atol_y1, atol_y2, atol_y3, atol_n1, atol_n2, atol_F, atol_E])
@@ -103,10 +104,21 @@ def define_boundary_conditions(bed_properties):
 
 # Running simulation! ======================================================================================================
 
+P_result = []
+T_result = []
+Tw_result = [] 
+y1_result = []
+y2_result = []
+y3_result = []
+n1_result = []
+n2_result = []
+F_result = []
+E_result = []
+
 # Implement solver
 bed_properties, column_grid, initial_conditions, rtol, atol_array = create_fixed_properties()
 inlet_values, outlet_values = define_boundary_conditions(bed_properties)
-t_span = [0, 3000]  # Time span for the ODE solver
+t_span = [0, 1500]  # Time span for the ODE solver
 
 t0=time.time()
 def ODE_func(t, results_vector,):
@@ -130,8 +142,9 @@ time = output_matrix.t
 
 print("Mass balance error:", total_mass_balance_error(F_result, P_result, T_result, n1_result, n2_result, time, bed_properties, column_grid))
 print("CO2 mass balance error:", CO2_mass_balance_error(F_result, P_result, T_result, y1_result, n1_result, time, bed_properties, column_grid))
-print("Energy balance error:", energy_balance_error(E_result, T_result, P_result, y1_result, y2_result, y3_result, n1_result, n2_result, time, bed_properties, column_grid))
-
+print("Energy balance error:", energy_balance_error(E_result, T_result, P_result, y1_result, y2_result, y3_result, n1_result, n2_result, Tw_result, time, bed_properties, column_grid))
+print("Total simulation time:", total_time, "seconds")
+print("Duration of simulation:", time[-1], "seconds")
 
 # Calculate the exit column values
 (P_walls_result, T_walls_result, Tw_walls_result,
@@ -140,3 +153,6 @@ print("Energy balance error:", energy_balance_error(E_result, T_result, P_result
 
 # Create the combined plot
 create_combined_plot(time, T_result, P_result, y1_result, n1_result, y1_walls_result, v_walls_result, bed_properties)
+
+#create_plot(time, T_result, "Temperature evolution", "Temperature")
+#create_plot(time, n1_result, "Adsorbed phase", "CO2 adsorbed (mol/m^3)")

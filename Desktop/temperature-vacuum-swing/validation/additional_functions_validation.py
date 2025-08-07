@@ -64,11 +64,82 @@ def quadratic_extrapolation_derivative_nonzero(x0, y0, x1, y1, x2, a, b):
     """
     return (a * b + (y0 - y1) / (x0 - x1) + y0 / (-x0 + x2) + y1 / (-x1 + x2)) / (a + 1 / (-x0 + x2) + 1 / (-x1 + x2))
 
+def cubic_extrapolation(x0, y0, x1, y1, x2, y2, x3, y3, x):
+    """
+    Cubic extrapolation using Lagrange interpolation.
+    
+    Uses 4 known points (x0,y0), (x1,y1), (x2,y2), (x3,y3) to construct a cubic polynomial,
+    then evaluates it at x4.
+    
+    Args:
+        x0, y0: First known point
+        x1, y1: Second known point  
+        x2, y2: Third known point
+        x3, y3: Fourth known point
+        x4: x-coordinate where we want to extrapolate y4
+        
+    Returns:
+        y4: Extrapolated value at x4
+    """
+    L_0 = (x - x1) * (x - x2) * (x - x3) / ((x0 - x1) * (x0 - x2) * (x0 - x3))
+    L_1 = (x - x0) * (x - x2) * (x - x3) / ((x1 - x0) * (x1 - x2) * (x1 - x3))
+    L_2 = (x - x0) * (x - x1) * (x - x3) / ((x2 - x0) * (x2 - x1) * (x2 - x3))
+    L_3 = (x - x0) * (x - x1) * (x - x2) / ((x3 - x0) * (x3 - x1) * (x3 - x2))
+
+    return y0 * L_0 + y1 * L_1 + y2 * L_2 + y3 * L_3
+
+def cubic_extrapolation_derivative(x0, y0, x1, y1, x2, y2, x):
+    """
+    Extrapolate value y4 using cubic Lagrangian interpolation such that dy/dx = 0 at x4.
+    
+    Uses 4 known points (x0,y0), (x1,y1), (x2,y2), (x3,y3) to construct a cubic polynomial,
+    then finds y4 at x4 such that the derivative constraint dy/dx = 0 is satisfied.
+    
+    Args:
+        x0, y0: First known point
+        x1, y1: Second known point  
+        x2, y2: Third known point
+        x3: x-coordinate where we want to extrapolate y3
+        
+    Returns:
+        y3: Extrapolated value at x4
+    """
+    term1 = y2 * (x0-x)*(x1-x) / ((x0-x2)*(-x1+x2)*(x2-x))
+    term2 = y1 * (x0-x)*(x2-x) / ((x0-x1)*(x1-x2)*(x1-x))
+    term3 = y0 * (x1-x)*(-x2+x) / ((x0-x1)*(x0-x2)*(x0-x))
+
+    y3 = (term1 + term2 + term3) / (1/(-x0 + x) + 1/(-x1 + x) + 1/(-x2 + x))
+    return y3
+
+def cubic_extrapolation_derivative_nonzero(x0, y0, x1, y1, x2, y2, x, a, b):
+    """
+    Extrapolate value y4 using cubic Lagrangian interpolation such that dy/dx = a * (b - y4) at x4.
+    
+    Uses 4 known points (x0,y0), (x1,y1), (x2,y2), (x3,y3) to construct a cubic polynomial,
+    then finds y4 at x4 such that the derivative constraint dy/dx = a * (b - y4) is satisfied.
+    
+    Args:
+        x0, y0: First known point
+        x1, y1: Second known point  
+        x2, y2: Third known point
+        x3: x-coordinate where we want to extrapolate y3
+        a, b: Parameters for derivative constraint dy/dx = a * (b - y4)
+        
+    Returns:
+        y4: Extrapolated value at x4
+    """
+    term1 = y2 * (x0-x)*(x1-x) / ((x0-x2)*(-x1+x2)*(x2-x))
+    term2 = y1 * (x0-x)*(x2-x) / ((x0-x1)*(x1-x2)*(x1-x))
+    term3 = y0 * (x1-x)*(-x2+x) / ((x0-x1)*(x0-x2)*(x0-x))
+
+    y3 = (a*b + term1 + term2 + term3) / (a + 1/(-x0 + x) + 1/(-x1 + x) + 1/(-x2 + x))
+
+    return y3
 # ============================================================
 # 3. ISOTHERM EQUILIBRIA
 # ============================================================
 
-def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties, isotherm_type="Toth"):
+def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties, isotherm_type_1="Dual_site Langmuir"):
     """
     Toth isotherm for CO₂ on solid sorbent.
 
@@ -80,7 +151,7 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties,
     bed_density = bed_properties["bed_density"]          # kg/m³
     ε = bed_properties["bed_voidage"]           # bed void fraction
 
-    if isotherm_type == "Toth":
+    if isotherm_type_1 == "Toth":
         T_0 = 296           # Reference temperature (K)
         n_s = 2.38 * np.exp(0 * (1 - temperature / T_0))         # mol/kg
         b = 70.74 * np.exp(-1*(-57047) / (R * T_0) * (1-T_0 / temperature))  # kPa⁻¹
@@ -91,7 +162,7 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties,
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
         ΔH = -57047  # J/mol
     
-    elif isotherm_type == "Langmuir":
+    elif isotherm_type_1 == "Langmuir":
         c1 = y1 * pressure / (R * temperature)  # mol/m3
         c2 = y3 * pressure / (R * temperature)  # mol/m3
         b1 = 8.65e-7 * np.exp(-(-36641.21) / (R * temperature)) #m3/mol
@@ -104,7 +175,7 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties,
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
         ΔH = -57047  # J/mol
 
-    elif isotherm_type == "Dual_site Langmuir":
+    elif isotherm_type_1 == "Dual_site Langmuir":
         c1 = y1 * pressure / (R * temperature)  # mol/m3
         b1 = 3.17e-6 * np.exp(-(-28.63e3) / (R * temperature)) #m3/mol
         b2 = 3.21e-6 * np.exp(-(-20.37e3) / (R * temperature)) #m3/mol
@@ -115,8 +186,8 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties,
                                      qs2 * b2 * c1 / (1 + b2 * c1))  # mol/kg
 
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
-
+        ΔH = -57000 #  R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
+    
     return load_m3, ΔH
 
 def adsorption_isotherm_2(pressure, temperature, y2, bed_properties, isotherm_type="GAB"):
@@ -147,6 +218,7 @@ def adsorption_isotherm_2(pressure, temperature, y2, bed_properties, isotherm_ty
         load_m3 = 0 * pressure
 
     ΔH = -49000  # J/mol
+
     return load_m3, ΔH
 
 # ============================================================
@@ -163,7 +235,7 @@ def calculate_gas_viscosity():
     return 1.8e-5  # Pa·s
 
 def calculate_gas_thermal_conductivity():
-    return 1  # W/(m·K)
+    return 0.1  # W/(m·K)
 
 def calculate_wall_thermal_conductivity():
     return 205  # W/(m·K)
@@ -218,7 +290,7 @@ def CO2_mass_balance_error(F, P, T, y1, n1, time, bed_props, grid):
     mole_acc = scipy.integrate.trapezoid(n_acc_final - n_acc_init, z)
     return np.abs(mole_in - mole_out - mole_acc) / np.abs(mole_acc) * 100
 
-def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, time, bed_props, grid):
+def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid):
     """
     Returns % energy balance error.
     """
@@ -235,6 +307,7 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, time, bed_props, grid):
     # Energy terms
     heat_in = E[0, -1]
     heat_out = E[1, -1]
+   
 
     ΔH1 = adsorption_isotherm_1(P[:, -1], T[:, -1], y1[:, -1], y2[:, -1], y3[:,-1], n1[:,-1], bed_props)[1]
     ΔH2 = adsorption_isotherm_2(P[:, -1], T[:, -1], y2[:, -1], bed_props)[1]
@@ -243,15 +316,37 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, time, bed_props, grid):
         np.abs(ΔH1) * (n1[:, -1] - n1[:, 0]) +
         np.abs(ΔH2) * (n2[:, -1] - n2[:, 0]), z)
 
-    heat_acc_solid = (1 - ε) * A * Cp_s * bed_density * scipy.integrate.trapezoid((T[:, -1] - T[:, 0]), z)
+    heat_acc_solid = (1 - ε) * A * Cp_s * bed_density / (1 - ε) * scipy.integrate.trapezoid((T[:, -1] - T[:, 0]), z)
     heat_acc_gas = ε * A * Cp_g * scipy.integrate.trapezoid(
         P[:, -1]/(R*T[:, -1]) * T[:, -1] - P[:, 0]/(R*T[:, 0]) * T[:, 0], z)
     heat_acc_adsorbed = (1 - ε) * A * scipy.integrate.trapezoid(
         (Cp_1*n1[:, -1] + Cp_2*n2[:, -1]) * T[:, -1] - (Cp_1*n1[:, 0] + Cp_2*n2[:, 0]) * T[:, 0], z)
-    
-    heat_loss_from_bed = 0 # E[2,-1]
 
-    total_out = heat_out + heat_acc_solid + heat_acc_gas + heat_acc_adsorbed + heat_loss_from_bed
+    heat_acc_wall = ( bed_props["wall_density"] * bed_props["wall_heat_capacity"] * np.pi * (bed_props["outer_bed_radius"]**2 - bed_props["inner_bed_radius"]**2)
+                    * scipy.integrate.trapezoid((Tw[:, -1] - Tw[:, 0]), z) )
+    heat_loss_from_bed = E[2,-1]
+
+
+    print("Heat in:", heat_in, "J")
+    print("Heat out:", heat_out, "J")
+    print("Heat generation:", heat_gen, "J")
+    print("Heat accumulation in solid:", heat_acc_solid, "J")
+    print("Heat accumulation in gas:", heat_acc_gas, "J")
+    print("Heat accumulation in adsorbed phase:", heat_acc_adsorbed, "J")
+    print("Heat accumulation in wall:", heat_acc_wall, "J")
+    print("Heat loss from bed:", heat_loss_from_bed, "J")
+    print("Delta H1:", ΔH1, "J/mol")
+
+    print("A", A, "m²")
+    print("Bed density", bed_density, "kg/m³")
+    print("R", R, "J/(mol*K)")
+    print("Cp_g", Cp_g, "J/(mol*K)")
+    print("Cp_s", Cp_s, "J/(kg*K)")
+    print("Cp_1", Cp_1, "J/(mol*K)")
+    print("Cp_2", Cp_2, "J/(mol*K)")
+
+
+    total_out = heat_out + heat_acc_solid + heat_acc_gas + heat_acc_adsorbed + heat_acc_wall + heat_loss_from_bed
     return np.abs(heat_in + heat_gen - total_out) / np.abs(total_out) * 100
 
 # ============================================================

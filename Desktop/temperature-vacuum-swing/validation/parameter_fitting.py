@@ -113,7 +113,7 @@ class ParameterFitter:
             })
         
         # Print progress
-        if len(self.optimization_history) % 10 == 0:
+        if len(self.optimization_history) % 1 == 0:
             print(f"Iteration {len(self.optimization_history)}: Error = {total_error:.6e}, Parameters = {parameters}")
 
         return total_error
@@ -136,11 +136,12 @@ class ParameterFitter:
             bounds,
             seed=42,
             maxiter=0,
-            popsize=10,
+            popsize=5,
             atol=1e-6,
             tol=1e-6,
             disp=True,
-            init='sobol'
+            init='sobol',
+            polish=False
         )
 
         end_time = time.time()
