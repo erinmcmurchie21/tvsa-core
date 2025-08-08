@@ -20,6 +20,7 @@ def create_fixed_properties():
     "inner_bed_radius": 0.00945,
     "outer_bed_radius": 0.0127,  # Example value for bed diameter in meters
     "bed_voidage": 0.456,  # Example value for bed voidage
+    "total_voidage": 0.456,  # Example value for total voidage
     "bed_density": 435,  # Example value for bed density in kg/m^3
     "column_area": 0.00945**2 * np.pi,  # Cross-sectional area of the column
     "sorbent_density": 900, #kg/m3, 55.4 (Haghpanagh et al. 2013)
@@ -36,11 +37,11 @@ def create_fixed_properties():
     "sorbent_heat_capacity": 1040, # J /kg/K, # Example value for solid heat capacity
     "wall_heat_capacity": 902, # J /kg/K, # Example value for wall heat capacity (Haghpanagh et al. 2013)
     "heat_capacity_1": 840 * 44.01 / 1000,  # J / kgK / (kg/mol) J/mol K * kg/m3 Example value for adsorbed phase heat capacity of component 1 (CO2) 
-    "heat_capacity_2":30,  # Example value for adsorbed phase heat capacity of component 2 (H2O)
+    "heat_capacity_2": 30,  # Example value for adsorbed phase heat capacity of component 2 (H2O)
     "mass_transfer_1": 0.0002,  # Example value for mass transfer coefficient of component 1 (CO2) in s-1
     "mass_transfer_2": 0.002,  # Example value for mass transfer coefficient of component 2 (H2O) in s-1
-    "h_bed": 0, #140,  # Example value for bed heat transfer coefficient in W/m²·K
-    "h_wall": 0, #20,  # Example value for wall heat transfer coefficient in W
+    "h_bed": 0,  # 140,  # Example value for bed heat transfer coefficient in W/m²·K
+    "h_wall": 0,  # 20,  # Example value for wall heat transfer coefficient in W
     "MW_1": 44.01,  # Molecular weight of component 1 (CO2) in g/mol
     "MW_2": 18.02,  # Molecular weight of component 2 (H2O) in g/mol
     "MW_3": 28.02,  # Molecular weight of component 3 (N2) in g/mol
@@ -83,7 +84,7 @@ def create_fixed_properties():
 def define_boundary_conditions(bed_properties):
     inlet_values = {
         "inlet_type": "mass_flow",
-        "velocity": 100 / 60 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"],  # Example value for superficial velocity in m/s
+        "velocity": 100 / 60 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"],  # Example value for interstitial velocity in m/s
         "rho_gas": 1.13,  # Example value for feed density in kg/m^3
         "feed_volume_flow": 1.6667e-6,  # cm³/min to m³/s
         "feed_mass_flow": (0.01 * float(bed_properties["column_area"]) * 1.13),  # Example value for feed mass flow in kg/s

@@ -186,7 +186,7 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties,
                                      qs2 * b2 * c1 / (1 + b2 * c1))  # mol/kg
 
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -57000 #  R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
+        ΔH = -28000 #  R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
     
     return load_m3, ΔH
 
@@ -312,18 +312,18 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid)
     ΔH1 = adsorption_isotherm_1(P[:, -1], T[:, -1], y1[:, -1], y2[:, -1], y3[:,-1], n1[:,-1], bed_props)[1]
     ΔH2 = adsorption_isotherm_2(P[:, -1], T[:, -1], y2[:, -1], bed_props)[1]
 
-    heat_gen = (1 - ε) * A * scipy.integrate.trapezoid(
-        np.abs(ΔH1) * (n1[:, -1] - n1[:, 0]) +
-        np.abs(ΔH2) * (n2[:, -1] - n2[:, 0]), z)
+    heat_gen = (1 - ε) * A * np.sum(
+        (np.abs(ΔH1) * (n1[:, -1] - n1[:, 0]) +
+        np.abs(ΔH2) * (n2[:, -1] - n2[:, 0])) * grid["deltaZ"][1:-1])
 
-    heat_acc_solid = (1 - ε) * A * Cp_s * bed_density / (1 - ε) * scipy.integrate.trapezoid((T[:, -1] - T[:, 0]), z)
-    heat_acc_gas = ε * A * Cp_g * scipy.integrate.trapezoid(
-        P[:, -1]/(R*T[:, -1]) * T[:, -1] - P[:, 0]/(R*T[:, 0]) * T[:, 0], z)
-    heat_acc_adsorbed = (1 - ε) * A * scipy.integrate.trapezoid(
-        (Cp_1*n1[:, -1] + Cp_2*n2[:, -1]) * T[:, -1] - (Cp_1*n1[:, 0] + Cp_2*n2[:, 0]) * T[:, 0], z)
+    heat_acc_solid = A * Cp_s * bed_density * np.sum((T[:, -1] - T[:, 0]) * grid["deltaZ"][1:-1])
+    heat_acc_gas = ε * A * Cp_g * np.sum((
+        P[:, -1]/(R*T[:, -1]) * T[:, -1] - P[:, 0]/(R*T[:, 0]) * T[:, 0]) * grid["deltaZ"][1:-1])
+    heat_acc_adsorbed = (1 - ε) * A * np.sum((
+        (Cp_1*n1[:, -1] + Cp_2*n2[:, -1]) * T[:, -1] - (Cp_1*n1[:, 0] + Cp_2*n2[:, 0]) * T[:, 0]) * grid["deltaZ"][1:-1])
 
     heat_acc_wall = ( bed_props["wall_density"] * bed_props["wall_heat_capacity"] * np.pi * (bed_props["outer_bed_radius"]**2 - bed_props["inner_bed_radius"]**2)
-                    * scipy.integrate.trapezoid((Tw[:, -1] - Tw[:, 0]), z) )
+                    * np.sum((Tw[:, -1] - Tw[:, 0]) * grid["deltaZ"][1:-1]))
     heat_loss_from_bed = E[2,-1]
 
 
@@ -336,10 +336,10 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid)
     print("Heat accumulation in wall:", heat_acc_wall, "J")
     print("Heat loss from bed:", heat_loss_from_bed, "J")
     print("Delta H1:", ΔH1, "J/mol")
+    print("Bed length", bed_props["bed_length"], "m")
+    print("sum(deltaZ)", np.sum(grid["deltaZ"][1:-1]), "m")
 
-    print("A", A, "m²")
     print("Bed density", bed_density, "kg/m³")
-    print("R", R, "J/(mol*K)")
     print("Cp_g", Cp_g, "J/(mol*K)")
     print("Cp_s", Cp_s, "J/(kg*K)")
     print("Cp_1", Cp_1, "J/(mol*K)")

@@ -400,7 +400,7 @@ def ghost_cell_calculations(P, T, Tw, y1, y2, y3,
 
 def calculate_internal_wall_values(P_all, T_all, Tw_all, y1_all, y2_all, y3_all, 
                                    P_inlet, P_outlet, T_inlet, T_outlet, Tw_inlet, Tw_outlet, y1_inlet, y1_outlet, y2_inlet, y2_outlet, 
-                                    y3_inlet, y3_outlet, v_inlet, v_outlet, dPdz_inlet, dPdz_outlet, dTwdz_inlet, dTwdz_outlet, bed_properties, column_grid):
+                                    y3_inlet, y3_outlet, v_inlet, v_outlet, dPdz_inlet, dPdz_outlet, dTwdz_inlet, dTwdz_outlet, bed_properties, column_grid, inlet_values):
 
     epsilon = 1.0e-10
     Nx = int(column_grid["num_cells"])
@@ -437,6 +437,13 @@ def calculate_internal_wall_values(P_all, T_all, Tw_all, y1_all, y2_all, y3_all,
     T_walls = np.concatenate((np.array([T_inlet]), T_walls))
 
     dTdz_walls = np.array((T_all[1:Nx+2]- T_all[0:Nx+1]) / (column_grid["xCentres"][1:Nx+2] - column_grid["xCentres"][0:Nx+1]))
+    dTdz_walls[-1] = 0
+    rho_gas_inlet = func.calculate_gas_density(P_all[1], T_all[1])  # [mol/m³]
+    Cp_g = func.calculate_gas_heat_capacity()               # [J/mol·K]
+    thermal_diffusivity = func.calculate_gas_thermal_conductivity() / (Cp_g * rho_gas_inlet)
+    Pe_h = bed_properties["bed_voidage"] / thermal_diffusivity
+    v_inlet = inlet_values["velocity"] 
+    dTdz_walls[0] = -(v_inlet * Pe_h) * (inlet_values["feed_temperature"] - T_inlet)  # set inlet temperature gradient
 
     #calculate dP/dz at internal cell walls by linear interpolation
     dPdz_walls = np.array((P_all[1:Nx+2]- P_all[0:Nx+1]) / (column_grid["xCentres"][1:Nx+2] - column_grid["xCentres"][0:Nx+1]))
@@ -543,7 +550,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
         P_inlet, P_outlet, T_inlet, T_outlet, Tw_inlet, Tw_outlet,
         y1_inlet, y1_outlet, y2_inlet, y2_outlet, y3_inlet, y3_outlet, 
         v_inlet, v_outlet, dPdz_inlet, dPdz_outlet, dTwdz_inlet, dTwdz_outlet,
-        bed_properties, column_grid)
+        bed_properties, column_grid, inlet_values)
     
     walls = np.concatenate((P_walls, T_walls, Tw_walls, y1_walls, y2_walls, y3_walls, v_walls))
 
@@ -592,37 +599,38 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     # =========================================================================
     # ENERGY BALANCE - COLUMN TEMPERATURE
     # =========================================================================
+
     
-    # Heat capacity terms
-    q1 = n1 * bed_properties["bed_density"] / (1 - bed_properties["bed_voidage"])
-    q2 = n2 * bed_properties["bed_density"] / (1 - bed_properties["bed_voidage"])
-    
-    a_2 = ((1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * 
-           (Cp_solid * bed_properties["bed_density"] + Cp_1 * n1 + Cp_2 * n2) + 
-           Cp_g * P / (bed_properties["R"] * T))
+    a_2 = (
+        bed_properties["total_voidage"] * P / (bed_properties["R"] * T) * Cp_g 
+        + bed_properties["bed_density"] * Cp_solid
+        + (1 - bed_properties["bed_voidage"]) * (Cp_1 * n1 + Cp_2 * n2)
+        - bed_properties["total_voidage"] * P / T
+    )
     
     # Column energy balance terms
-    conduction_term = (K_z / bed_properties["bed_voidage"] * 
-                      (1 / column_grid["deltaZ"][1:-1]) * 
+    conduction_term = (+ K_z * bed_properties["bed_voidage"] *
+                      (1 / column_grid["deltaZ"][1:-1]) *
                       (dTdz_walls[1:num_cells+1] - dTdz_walls[:num_cells]))
-    
-    convection_term = (-Cp_g / (bed_properties["R"] * column_grid["deltaZ"][1:-1]) * 
+
+    convection_term = (- Cp_g * bed_properties["bed_voidage"] / column_grid["deltaZ"][1:-1] * 
                       (v_walls[1:num_cells+1] * P_walls[1:num_cells+1] - 
                        v_walls[:num_cells] * P_walls[:num_cells]))
-    
-    accumulation_term = (-Cp_g * T * (1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * (dn1dt + dn2dt) 
-                         + Cp_g * T / (bed_properties["R"] * (column_grid["deltaZ"][1:-1] )) * 
+
+    accumulation_term = (- bed_properties["R"] * T * (1 - bed_properties["bed_voidage"]) * (dn1dt + dn2dt)
+                         
+                         - T * bed_properties["bed_voidage"] / (column_grid["deltaZ"][1:-1] ) * 
                          (P_walls[1:num_cells+1] * v_walls[1:num_cells+1] / T_walls[1:num_cells+1] - 
                           P_walls[:num_cells] * v_walls[:num_cells] / T_walls[:num_cells]))
     
-    adsorption_heat_term = ((1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * 
+    adsorption_heat_term = (+ (1 - bed_properties["bed_voidage"]) * 
                            ((np.abs(deltaH_1)) * dn1dt + (np.abs(deltaH_2)) * dn2dt))
 
-    adsorbent_heat_term = (-(1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * 
+    adsorbent_heat_term = (- (1 - bed_properties["bed_voidage"]) * 
                           T * (Cp_1 * dn1dt + Cp_2 * dn2dt))
     
     heat_transfer_term = (-2 * h_bed * (T - Tw) / 
-                         (bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]))
+                         (bed_properties["inner_bed_radius"]))
     
     # Combined temperature derivative
     dTdt = (1 / a_2 * (conduction_term + convection_term + accumulation_term + 
@@ -639,9 +647,9 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     # =========================================================================
     
     thermal_expansion_term = P / T * dTdt
-    adsorption_term = (-(1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * 
+    adsorption_term = (-(1 - bed_properties["bed_voidage"]) / bed_properties["total_voidage"] * 
                       bed_properties["R"] * T * (dn1dt + dn2dt))
-    convective_term = (-T * 
+    convective_term = (-T * bed_properties["bed_voidage"] / bed_properties["total_voidage"] *
                       1 / column_grid["deltaZ"][1:-1] * 
                       (P_walls[1:num_cells+1] * v_walls[1:num_cells+1] / T_walls[1:num_cells+1] - 
                        P_walls[:num_cells] * v_walls[:num_cells] / T_walls[:num_cells]))
@@ -684,17 +692,17 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
         
         adsorption_effect = 0
         if dnidt is not None:
-            adsorption_effect = (-(1 - bed_properties["bed_voidage"]) / bed_properties["bed_voidage"] * 
+            adsorption_effect = (-(1 - bed_properties["bed_voidage"]) / bed_properties["total_voidage"] * 
                                bed_properties["R"] * T / P * dnidt)
         
-        convection_effect = (-1 * T / P * 
+        convection_effect = (- bed_properties["bed_voidage"] / bed_properties["total_voidage"]  * T / P * 
                            1 / column_grid["deltaZ"][1:-1] * 
                            (P_walls[1:num_cells+1] * v_walls[1:num_cells+1] * yi_walls[1:num_cells+1] / T_walls[1:num_cells+1] - 
                             P_walls[:num_cells] * v_walls[:num_cells] * yi_walls[:num_cells] / T_walls[:num_cells]))
         
         dyidz = (yi_all[1:num_cells+2]- yi_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
         
-        dispersion_effect = (D_l * T / P * 1 / column_grid["deltaZ"][1:-1] * 
+        dispersion_effect = ( bed_properties["bed_voidage"] / bed_properties["total_voidage"] * D_l * T / P * 1 / column_grid["deltaZ"][1:-1] * 
                            (P_walls[1:num_cells+1] / T_walls[1:num_cells+1] * dyidz[1:num_cells+1] - 
                             P_walls[0:num_cells] / T_walls[0:num_cells] * dyidz[0:num_cells]))
         
@@ -743,7 +751,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     #Inlet and outlet calculations for energy balance error
     dE1dt = (bed_properties["bed_voidage"] * bed_properties["column_area"] * Cp_g * v_walls[0] * T_walls[0] * P_walls[0] / (bed_properties["R"] * T_walls[0]))
     dE2dt = (bed_properties["bed_voidage"] * bed_properties["column_area"] * Cp_g * v_walls[-1] * T_walls[-1] * P_walls[-1] / (bed_properties["R"] * T_walls[-1]))
-    dE3dt = scipy.integrate.trapezoid(2 * np.pi * bed_properties["outer_bed_radius"] * h_wall * (Tw - bed_properties["ambient_temperature"]), column_grid["xCentres"][1:-1])
+    dE3dt = np.sum(2 * np.pi * bed_properties["outer_bed_radius"] * h_wall * (Tw - bed_properties["ambient_temperature"]) * column_grid["deltaZ"][1:-1])
     dEdt = np.array([dE1dt, dE2dt, dE3dt])
 
     # Combine derivatives into a single vector
@@ -800,7 +808,7 @@ def final_wall_values(column_grid, bed_properties, inlet_values, outlet_values, 
             P_inlet, P_outlet, T_inlet, T_outlet, Tw_inlet, Tw_outlet,
             y1_inlet, y1_outlet, y2_inlet, y2_outlet, y3_inlet, y3_outlet, 
             v_inlet, v_outlet, dPdz_inlet, dPdz_outlet, dTwdz_inlet, dTwdz_outlet,
-            bed_properties, column_grid)
+            bed_properties, column_grid, inlet_values)
 
         # Append current timestep wall values
         P_walls_.append(P_walls)
