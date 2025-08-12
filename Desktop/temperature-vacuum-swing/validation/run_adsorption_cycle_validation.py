@@ -20,7 +20,7 @@ def create_fixed_properties():
     "inner_bed_radius": 0.00945,
     "outer_bed_radius": 0.0127,  # Example value for bed diameter in meters
     "bed_voidage": 0.456,  # Example value for bed voidage
-    "total_voidage": 0.456,  # Example value for total voidage
+    "total_voidage": 0.56,  # Example value for total voidage
     "bed_density": 435,  # Example value for bed density in kg/m^3
     "column_area": 0.00945**2 * np.pi,  # Cross-sectional area of the column
     "sorbent_density": 900, #kg/m3, 55.4 (Haghpanagh et al. 2013)
@@ -90,9 +90,9 @@ def define_boundary_conditions(bed_properties):
         "feed_mass_flow": (0.01 * float(bed_properties["column_area"]) * 1.13),  # Example value for feed mass flow in kg/s
         "feed_temperature": 293.15,  # Example value for feed temperature in Kelvin
         "feed_pressure": 101325,  # Example value for feed pressure in Pa
-        "y1_feed_value": 0.999999,  # Example value for feed mole fraction
+        "y1_feed_value": 0.99,  # Example value for feed mole fraction
         "y2_feed_value": 1e-6,  # Example value for feed mole fraction
-        "y3_feed_value": 0,  # Example value for feed mole fraction
+        "y3_feed_value": 1e-6,  # Example value for feed mole fraction
     }
         # Define bed outlet values (subject to variation)
     outlet_values = {
@@ -119,7 +119,7 @@ E_result = []
 # Implement solver
 bed_properties, column_grid, initial_conditions, rtol, atol_array = create_fixed_properties()
 inlet_values, outlet_values = define_boundary_conditions(bed_properties)
-t_span = [0, 1500]  # Time span for the ODE solver
+t_span = [0, 3000]  # Time span for the ODE solver
 
 t0=time.time()
 def ODE_func(t, results_vector,):

@@ -186,7 +186,7 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties,
                                      qs2 * b2 * c1 / (1 + b2 * c1))  # mol/kg
 
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -28000 #  R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
+        ΔH = -57000 #  R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
     
     return load_m3, ΔH
 
@@ -346,8 +346,8 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid)
     print("Cp_2", Cp_2, "J/(mol*K)")
 
 
-    total_out = heat_out + heat_acc_solid + heat_acc_gas + heat_acc_adsorbed + heat_acc_wall + heat_loss_from_bed
-    return np.abs(heat_in + heat_gen - total_out) / np.abs(total_out) * 100
+    total_acc = heat_acc_solid + heat_acc_gas + heat_acc_adsorbed + heat_acc_wall
+    return np.abs(heat_in + heat_gen - total_acc - heat_loss_from_bed - heat_out) / np.abs(total_acc) * 100
 
 # ============================================================
 # 6. PLOTTING
