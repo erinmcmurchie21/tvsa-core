@@ -190,7 +190,7 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties,
     
     elif isotherm_type_1 == "Haghpanagh":
         c1 = y1 * pressure / (R * temperature)  # mol/m3
-        c2 = y3 * pressure / (R * temperature)  # mol/m3
+        c2 = y2 * pressure / (R * temperature)  # mol/m3
         b1 = 8.65e-7 * np.exp(-(-36.643e3) / (R * temperature)) #m3/mol
         b2 = 2.5e-6 * np.exp(-(-15.8e3) / (R * temperature)) #m3/mol
         d1 = 2.63e-8 * np.exp(-(-35.69e3) / (R * temperature)) #m3/mol
@@ -202,12 +202,12 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties,
                                      qs2 * d1 * c1 / (1 + d1 * c1 + d2 * c2))  # mol/kg
 
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -57000 #  R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
+        ΔH = -36000 #  R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
     
 
     return load_m3, ΔH
 
-def adsorption_isotherm_2(pressure, temperature, y2, bed_properties, isotherm_type="GAB"):
+def adsorption_isotherm_2(pressure, temperature, y1, y2, bed_properties, isotherm_type_2="GAB"):
     """
     GAB isotherm for H₂O.
 
@@ -219,7 +219,7 @@ def adsorption_isotherm_2(pressure, temperature, y2, bed_properties, isotherm_ty
     bed_density = bed_properties["bed_density"]  # kg/m³
     ε = bed_properties["bed_voidage"]  # bed void fraction
 
-    if isotherm_type == "GAB":
+    if isotherm_type_2 == "GAB":
         K_ads = 0.5751 # -
         c_m = 36.48 # mol/kg
         c_G = 0.1489 # -
@@ -231,10 +231,27 @@ def adsorption_isotherm_2(pressure, temperature, y2, bed_properties, isotherm_ty
         load_kg = c_m * c_G * K_ads * RH / ((1 - K_ads * RH) * (1 + (c_G - 1) * K_ads * RH))  # mol/kg
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
 
-    elif isotherm_type == "None":
+    elif isotherm_type_2 == "None":
         load_m3 = 0 * pressure
 
-    ΔH = -49000  # J/mol
+        ΔH = -49000  # J/mol
+
+    elif isotherm_type_2 == "Haghpanagh":
+        c1 = y1 * pressure / (R * temperature)  # mol/m3
+        c2 = y2 * pressure / (R * temperature)  # mol/m3
+        b1 = 8.65e-7 * np.exp(-(-36.643e3) / (R * temperature)) #m3/mol
+        b2 = 2.5e-6 * np.exp(-(-15.8e3) / (R * temperature)) #m3/mol
+        d1 = 2.63e-8 * np.exp(-(-35.69e3) / (R * temperature)) #m3/mol
+        d2 = 0 * np.exp(-(-1.58e4) / (R * temperature)) #m3/mol
+        qsb = 5.84 #mol/kg
+        qsd = 0.00 #mol/kg
+
+        load_kg = (qsb * b1 * c1 / (1 + b1 * c1 + b2 * c2) + 
+                                     qsd * d1 * c1 / (1 + d1 * c1 + d2 * c2))  # mol/kg
+
+        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        ΔH = -36000 #  R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
+    
 
     return load_m3, ΔH
 

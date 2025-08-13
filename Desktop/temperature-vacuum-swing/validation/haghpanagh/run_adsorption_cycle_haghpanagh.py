@@ -9,7 +9,7 @@ import tvsa_adsorption_column_haghpanagh as column
 
 """This script sets up the initial conditions and parameters for an adsorption column model simulation.
 It defines the column grid, bed properties, inlet and outlet conditions, and initializes the state variables for the simulation.
-The components are (1) CO2, (2) H2O, (3) N2 and (4) O2."""
+The components are (1) CO2, (2) N2, (3) H2O and (4) O2."""
 
 
 # Define fixed bed properties
@@ -22,7 +22,7 @@ def create_fixed_properties():
     "bed_voidage": 0.37,  # Example value for bed voidage
     "total_voidage": 0.37+(1-0.37)*0.35,  # Example value for total voidage
     "bed_density": (1-0.37)*1130,  # Example value for bed density in kg/m^3
-    "column_area": 0.00945**2 * np.pi,  # Cross-sectional area of the column
+    "column_area": 0.1445**2 * np.pi,  # Cross-sectional area of the column
     "sorbent_density": 1130, #kg/m3, 55.4 (Haghpanagh et al. 2013)
     "ambient_temperature": 293.15,  # Example value for ambient temperature in Kelvin
     
@@ -36,19 +36,19 @@ def create_fixed_properties():
     "sorbent_mass": 0.286 * 0.00945**2 * np.pi* 435,  # Example value for sorbent mass in kg
     "sorbent_heat_capacity": 1040, # J /kg/K, # Example value for solid heat capacity
     "wall_heat_capacity": 502, # J /kg/K, # Example value for wall heat capacity (Haghpanagh et al. 2013)
-    "heat_capacity_1": 30.7,  # J / kgK / (kg/mol) J/mol K * kg/m3 Example value for adsorbed phase heat capacity of component 1 (CO2) 
+    "heat_capacity_1": 30.7,  # J / kgK / (kg/mol) J/mol K * kg/m3 Example value for adsorbed phase heat capacity of component  1 (CO2) 
     "heat_capacity_2": 30.7,  # Example value for adsorbed phase heat capacity of component 2 (H2O)
     "mass_transfer_1": 0.0002,  # Example value for mass transfer coefficient of component 1 (CO2) in s-1
     "mass_transfer_2": 0.002,  # Example value for mass transfer coefficient of component 2 (H2O) in s-1
     "h_bed": 8.6,  # 140,  # Example value for bed heat transfer coefficient in W/m²·K
     "h_wall": 2.5,  # 20,  # Example value for wall heat transfer coefficient in W
     "MW_1": 44.01,  # Molecular weight of component 1 (CO2) in g/mol
-    "MW_2": 18.02,  # Molecular weight of component 2 (H2O) in g/mol
-    "MW_3": 28.02,  # Molecular weight of component 3 (N2) in g/mol
+    "MW_3": 18.02,  # Molecular weight of component 2 (H2O) in g/mol
+    "MW_2": 28.02,  # Molecular weight of component 3 (N2) in g/mol
     "MW_4": 32.00,  # Molecular weight of component 4 (O2) in g/mol
     "mu": 1.78e-5,  # Example value for feed viscosity in Pa.s
     "isotherm_type_1": "Haghpanagh",
-    "isotherm_type_2": "None",  # Example value for isotherm type for component 2 (H2O)
+    "isotherm_type_2": "Haghpanagh",  # Example value for isotherm type for component 2 (H2O)
 }
     column_grid = create_non_uniform_grid(bed_properties)
 
@@ -57,10 +57,10 @@ def create_fixed_properties():
     T = np.ones(column_grid["num_cells"]) * 298.15  # Example temperature vector in K
     Tw = np.ones(column_grid["num_cells"]) * 298.15  # Example wall temperature vector in K
     y1 = np.ones(column_grid["num_cells"]) * 1e-6  # Example mole fraction of component 1
-    y2 = np.ones(column_grid["num_cells"]) * 1e-6 # Example mole fraction of component 2
-    y3 = np.ones(column_grid["num_cells"]) * 0.99  # Example mole fraction of component 3
+    y2 = np.ones(column_grid["num_cells"]) * 0.99 # Example mole fraction of component 2
+    y3 = np.ones(column_grid["num_cells"]) * 1e-6  # Example mole fraction of component 3
     n1 = adsorption_isotherm_1(P, T, y1, y2, y3, 1e-6, bed_properties=bed_properties, isotherm_type_1=bed_properties["isotherm_type_1"])[0]  # Example concentration vector for component 1 in mol/m^3
-    n2 = adsorption_isotherm_2(P, T, y2, bed_properties=bed_properties, isotherm_type=bed_properties["isotherm_type_2"])[0]# Example concentration vector for component 2 in mol/m^3
+    n2 = adsorption_isotherm_2(P, T, y1, y2, bed_properties=bed_properties, isotherm_type_2=bed_properties["isotherm_type_2"])[0]# Example concentration vector for component 2 in mol/m^3
     F = np.zeros(8)
     E = np.zeros(3)  # Additional variables (e.g., flow rates, mass balances)
     initial_conditions = np.concatenate([P, T, Tw, y1, y2, y3, n1, n2, F, E])
@@ -84,21 +84,21 @@ def create_fixed_properties():
 def define_boundary_conditions(bed_properties):
     inlet_values = {
         "inlet_type": "mass_flow",
-        "velocity": 1.0 / bed_properties["bed_voidage"],  # Example value for interstitial velocity in m/s
+        "velocity": 0.5,  # Example value for interstitial velocity in m/s
         "rho_gas": 1.13,  # Example value for feed density in kg/m^3
         "feed_volume_flow": 1.6667e-6,  # cm³/min to m³/s
         "feed_mass_flow": (0.01 * float(bed_properties["column_area"]) * 1.13),  # Example value for feed mass flow in kg/s
         "feed_temperature": 298.15,  # Example value for feed temperature in Kelvin
         "feed_pressure": 101325,  # Example value for feed pressure in Pa
         "y1_feed_value": 0.15,  # Example value for feed mole fraction
-        "y2_feed_value": 1e-6,  # Example value for feed mole fraction
-        "y3_feed_value": 0.84,  # Example value for feed mole fraction
+        "y2_feed_value": 0.84,  # Example value for feed mole fraction
+        "y3_feed_value": 1e-6,  # Example value for feed mole fraction
     }
         # Define bed outlet values (subject to variation)
     outlet_values = {
         "outlet_type": "pressure",
         "outlet_pressure": 101325,  # Example value for outlet pressure in Pa
-        "outlet_temperature": 293.15,  # Example value for outlet temperature in Kelvin
+        "outlet_temperature": 298.15,  # Example value for outlet temperature in Kelvin
         }
     return inlet_values, outlet_values
 

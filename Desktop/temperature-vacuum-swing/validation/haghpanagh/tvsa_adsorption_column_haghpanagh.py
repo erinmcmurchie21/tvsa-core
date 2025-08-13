@@ -613,8 +613,8 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
 
 
     # ∂q₂/∂t = k₂(q₂* - q₂)
-    dn2dt = 0 * k2 * (func.adsorption_isotherm_2(P, T, y2, bed_properties, isotherm_type=isotherm_type_2)[0] - n2)
-    deltaH_2 = func.adsorption_isotherm_2(P, T, y2, bed_properties, isotherm_type=isotherm_type_2)[1]  # Heat of adsorption (J/mol)
+    dn2dt = 0 * k2 * (func.adsorption_isotherm_2(P, T,y1, y2, bed_properties, isotherm_type_2=isotherm_type_2)[0] - n2)
+    deltaH_2 = func.adsorption_isotherm_2(P, T, y1, y2, bed_properties, isotherm_type_2=isotherm_type_2)[1]  # Heat of adsorption (J/mol)
 
 
     # =========================================================================
@@ -714,7 +714,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     dy1dz = (y1_all[1:num_cells+2]- y1_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
     dy2dz = (y2_all[1:num_cells+2]- y2_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
     dy3dz = (y3_all[1:num_cells+2]- y3_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
-    dy4dz = 1 - dy1dz - dy2dz - dy3dz
+    dy4dz = - dy1dz - dy2dz - dy3dz
 
     dispersion_term = + ( bed_properties["bed_voidage"] * D_l / bed_properties["R"] *
                           ( 1 / column_grid["deltaZ"][1:-1] * 
@@ -834,22 +834,22 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     # =========================================================================
     
     # Inlet and outlet calculations for mass balance error
-    dF1dt = bed_properties["bed_voidage"] * bed_properties["column_area"] / (bed_properties["R"] * T_walls[0]) * v_walls[0]*P_walls[0] * y1_walls[0]
-    dF2dt = bed_properties["bed_voidage"] * bed_properties["column_area"] / (bed_properties["R"] * T_walls[0]) * v_walls[0]*P_walls[0] * y2_walls[0]
-    dF3dt = bed_properties["bed_voidage"] * bed_properties["column_area"] / (bed_properties["R"] * T_walls[0]) * v_walls[0]*P_walls[0] * y3_walls[0]
-    dF4dt = bed_properties["bed_voidage"] * bed_properties["column_area"] / (bed_properties["R"] * T_walls[0]) * v_walls[0]*P_walls[0] * (1 - y1_walls[0]-y2_walls[0]-y3_walls[0])
+    dF1dt = bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi / (bed_properties["R"] * T_walls[0]) * v_walls[0]*P_walls[0] * y1_walls[0]
+    dF2dt = bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi / (bed_properties["R"] * T_walls[0]) * v_walls[0]*P_walls[0] * y2_walls[0]
+    dF3dt = bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi / (bed_properties["R"] * T_walls[0]) * v_walls[0]*P_walls[0] * y3_walls[0]
+    dF4dt = bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi / (bed_properties["R"] * T_walls[0]) * v_walls[0]*P_walls[0] * (1 - y1_walls[0]-y2_walls[0]-y3_walls[0])
 
 
-    dF5dt = bed_properties["bed_voidage"] * bed_properties["column_area"] / (bed_properties["R"] * T_walls[-1]) * v_walls[-1]*P_walls[-1] * y1_walls[-1]
-    dF6dt = bed_properties["bed_voidage"] * bed_properties["column_area"] / (bed_properties["R"] * T_walls[-1]) * v_walls[-1]*P_walls[-1] * y2_walls[-1]
-    dF7dt = bed_properties["bed_voidage"] * bed_properties["column_area"] / (bed_properties["R"] * T_walls[-1]) * v_walls[-1]*P_walls[-1] * y3_walls[-1]
-    dF8dt = bed_properties["bed_voidage"] * bed_properties["column_area"] / (bed_properties["R"] * T_walls[-1]) * v_walls[-1]*P_walls[-1] * (1 - y1_walls[-1]-y2_walls[-1]-y3_walls[-1])
+    dF5dt = bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi / (bed_properties["R"] * T_walls[-1]) * v_walls[-1]*P_walls[-1] * y1_walls[-1]
+    dF6dt = bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi / (bed_properties["R"] * T_walls[-1]) * v_walls[-1]*P_walls[-1] * y2_walls[-1]
+    dF7dt = bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi / (bed_properties["R"] * T_walls[-1]) * v_walls[-1]*P_walls[-1] * y3_walls[-1]
+    dF8dt = bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi / (bed_properties["R"] * T_walls[-1]) * v_walls[-1]*P_walls[-1] * (1 - y1_walls[-1]-y2_walls[-1]-y3_walls[-1])
 
     dFdt = np.array([dF1dt, dF2dt, dF3dt, dF4dt, dF5dt, dF6dt, dF7dt, dF8dt])
 
     #Inlet and outlet calculations for energy balance error
-    dE1dt = (bed_properties["bed_voidage"] * bed_properties["column_area"] * Cp_g * v_walls[0] * T_walls[0] * P_walls[0] / (bed_properties["R"] * T_walls[0]))
-    dE2dt = (bed_properties["bed_voidage"] * bed_properties["column_area"] * Cp_g * v_walls[-1] * T_walls[-1] * P_walls[-1] / (bed_properties["R"] * T_walls[-1]))
+    dE1dt = (bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi * Cp_g * v_walls[0] * T_walls[0] * P_walls[0] / (bed_properties["R"] * T_walls[0]))
+    dE2dt = (bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi * Cp_g * v_walls[-1] * T_walls[-1] * P_walls[-1] / (bed_properties["R"] * T_walls[-1]))
     dE3dt = np.sum(2 * np.pi * bed_properties["outer_bed_radius"] * h_wall * (Tw - bed_properties["ambient_temperature"]) * column_grid["deltaZ"][1:-1])
     dEdt = np.array([dE1dt, dE2dt, dE3dt])
 
