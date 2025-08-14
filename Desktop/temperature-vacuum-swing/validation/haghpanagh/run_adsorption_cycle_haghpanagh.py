@@ -84,7 +84,7 @@ def create_fixed_properties():
 def define_boundary_conditions(bed_properties):
     inlet_values = {
         "inlet_type": "mass_flow",
-        "velocity": 0.5,  # Example value for interstitial velocity in m/s
+        "velocity": 1,  # Example value for interstitial velocity in m/s
         "rho_gas": 1.13,  # Example value for feed density in kg/m^3
         "feed_volume_flow": 1.6667e-6,  # cm³/min to m³/s
         "feed_mass_flow": (0.01 * float(bed_properties["column_area"]) * 1.13),  # Example value for feed mass flow in kg/s

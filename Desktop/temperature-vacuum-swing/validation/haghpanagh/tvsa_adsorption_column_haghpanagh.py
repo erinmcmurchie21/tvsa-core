@@ -604,8 +604,13 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     k2 = 0.002 # * bed_properties["bed_density"] / (1 - bed_properties["bed_voidage"])
 
     # Calculating kinetic constants for component 1
-    k1_validation = 15 * bed_properties["particle_voidage"] * bed_properties["molecular_diffusivity"] / ((bed_properties["tortuosity"]) * (bed_properties["particle_diameter"]/2)**2)
-    
+    k1_validation = ( P/(bed_properties["R"]*T)*y1 / func.adsorption_isotherm_1(P, T, y1, y2, y3, n1, bed_properties, isotherm_type_1=isotherm_type_1)[0]
+                     * 15 * bed_properties["particle_voidage"] * bed_properties["molecular_diffusivity"] / ( bed_properties["tortuosity"] * (bed_properties["particle_diameter"]/2)**2)
+    )
+
+    k2_validation = ( P/(bed_properties["R"]*T)*y2 / func.adsorption_isotherm_2(P, T, y1, y2, bed_properties, isotherm_type_2=isotherm_type_2)[0] 
+                        * 15 * bed_properties["particle_voidage"] * bed_properties["molecular_diffusivity"] / ( bed_properties["tortuosity"] * (bed_properties["particle_diameter"]/2)**2)
+        )
     # Solid phase balance for adsorbed components
     # ∂q₁/∂t = k₁(q₁* - q₁)
     dn1dt = k1_validation * (func.adsorption_isotherm_1(P, T, y1, y2, y3, n1, bed_properties, isotherm_type_1=isotherm_type_1)[0] - n1) # mol / m3
@@ -613,7 +618,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
 
 
     # ∂q₂/∂t = k₂(q₂* - q₂)
-    dn2dt = 0 * k2 * (func.adsorption_isotherm_2(P, T,y1, y2, bed_properties, isotherm_type_2=isotherm_type_2)[0] - n2)
+    dn2dt = k2_validation * (func.adsorption_isotherm_2(P, T,y1, y2, bed_properties, isotherm_type_2=isotherm_type_2)[0] - n2)
     deltaH_2 = func.adsorption_isotherm_2(P, T, y1, y2, bed_properties, isotherm_type_2=isotherm_type_2)[1]  # Heat of adsorption (J/mol)
 
 
@@ -741,22 +746,6 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
                       adsorbent_heat_generation + accumulation_term + heat_transfer_term))
 
 
-    # =========================================================================
-    # TOTAL MASS BALANCE - PRESSURE
-    # =========================================================================
-    
-    thermal_expansion_term = P / T * dTdt
-    adsorption_term = (-(1 - bed_properties["bed_voidage"]) / bed_properties["total_voidage"] * 
-                      bed_properties["R"] * T * (dn1dt + dn2dt))
-    convective_term = (-T * bed_properties["bed_voidage"] / bed_properties["total_voidage"] *
-                      1 / column_grid["deltaZ"][1:-1] * 
-                      (P_walls[1:num_cells+1] * v_walls[1:num_cells+1] / T_walls[1:num_cells+1] - 
-                       P_walls[:num_cells] * v_walls[:num_cells] / T_walls[:num_cells]))
-    
-    dPdt = thermal_expansion_term + adsorption_term + convective_term
-    
-    # \dfrac{\partial P}{\partial t} = \dfrac{P}{T}\dfrac{\partial T}{\partial t} - \dfrac{(1-\varepsilon)}{\varepsilon}{RT} \left(\frac{\partial q_1}{\partial t}+\frac{\partial q_2}{\partial t}\right)
-    #- \frac{1}{\varepsilon} \frac{T}{\Delta z} \left( \frac{P_{i+1/2} \ v_{i+1/2}}{T_{i+1/2}}-\frac{P_{i-1/2} \ v_{i-1/2}}{T_{i-1/2}} \right)"""
 
     # =========================================================================
     # WALL ENERGY BALANCE
@@ -779,6 +768,30 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     #"""\frac{\partial T_w}{\partial t} =
     #\frac{1}{\rho_w \ C_{p,wall}} \left(\frac{K_{wall}}{\Delta z}\left(\frac{\partial T_w}{\partial z}|_{i+1/2} - \frac{\partial T_w}{\partial z}|_{i-1/2}\right) 
     #+ \frac{2 r_{in} \ h_{bed}}{r_{out}^2-r_{in}^2} \left(T-T_w \right) - \frac{2 r_{out} \ h_{wall}}{r_{out}^2-r_{in}^2} \left(T_w-T_a \right)\right)"""
+
+     # =========================================================================
+    # TOTAL MASS BALANCE - PRESSURE
+    # =========================================================================
+    
+    dy1dz = (y1_all[1:num_cells+2]- y1_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
+    dy2dz = (y2_all[1:num_cells+2]- y2_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
+    dy3dz = (y3_all[1:num_cells+2]- y3_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
+    dy4dz = - dy1dz - dy2dz - dy3dz
+
+    thermal_expansion_term = P / T * dTdt
+    adsorption_term = (- T * bed_properties["R"] * (1 - bed_properties["bed_voidage"] / bed_properties["total_voidage"]) *
+                     (dn1dt + dn2dt))
+    convective_term = (-T * bed_properties["bed_voidage"] / bed_properties["total_voidage"] *
+                      1 / column_grid["deltaZ"][1:-1] * 
+                      (P_walls[1:num_cells+1] * v_walls[1:num_cells+1] / T_walls[1:num_cells+1] - 
+                       P_walls[:num_cells] * v_walls[:num_cells] / T_walls[:num_cells]))
+    
+    dispersion_term = (bed_properties["bed_voidage"] / bed_properties["total_voidage"] * D_l * T / column_grid["deltaZ"][1:-1] *
+                          (P_walls[1:num_cells+1] / T_walls[1:num_cells+1] * (dy1dz[1:num_cells+1] + dy2dz[1:num_cells+1] + dy3dz[1:num_cells+1] + dy4dz[1:num_cells+1]) -
+                           P_walls[:num_cells] / T_walls[:num_cells] * (dy1dz[:num_cells] + dy2dz[:num_cells] + dy3dz[:num_cells] + dy4dz[:num_cells]))
+    )
+
+    dPdt = thermal_expansion_term + adsorption_term + convective_term + dispersion_term
     
     # =========================================================================
     # COMPONENT MASS BALANCES
@@ -828,6 +841,13 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     #- \frac{1}{\varepsilon}\frac{T}{P}\frac{1}{\Delta z} \left( \frac{P_{i+1/2} \ y_{3,i+1/2} \ v_{i+1/2}}{T_{i+1/2}}-\frac{P_{i-1/2} \ y_{3,i-1/2} \ v_{i-1/2}}{T_{i-1/2}} \right)
     #\\ + D_l \  \frac{T}{P} \ \frac{1}{\Delta z} \left( \frac{P_{i+1/2}}{T_{i+1/2}} \ \frac{y_{3,i+1} - y_{3,i}}{\Delta z} - \frac{P_{i-1/2}}{T_{i-1/2}} \ \frac{y_{3,i} - y_{3,i-1}}{\Delta z}\right)"""
 
+    # Component 4 (non-adsorbing)
+    dy4dt = - (dy1dt + dy2dt + dy3dt)
+
+
+
+    # \dfrac{\partial P}{\partial t} = \dfrac{P}{T}\dfrac{\partial T}{\partial t} - \dfrac{(1-\varepsilon)}{\varepsilon}{RT} \left(\frac{\partial q_1}{\partial t}+\frac{\partial q_2}{\partial t}\right)
+    #- \frac{1}{\varepsilon} \frac{T}{\Delta z} \left( \frac{P_{i+1/2} \ v_{i+1/2}}{T_{i+1/2}}-\frac{P_{i-1/2} \ v_{i-1/2}}{T_{i-1/2}} \right)"""
    
     # =========================================================================
     # MASS AND ENERGY BALANCE TRACKING

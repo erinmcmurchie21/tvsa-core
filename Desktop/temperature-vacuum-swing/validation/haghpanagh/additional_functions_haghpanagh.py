@@ -207,7 +207,7 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties,
 
     return load_m3, ΔH
 
-def adsorption_isotherm_2(pressure, temperature, y1, y2, bed_properties, isotherm_type_2="GAB"):
+def adsorption_isotherm_2(pressure, temperature, y1, y2, bed_properties, isotherm_type_2="Haghpanagh"):
     """
     GAB isotherm for H₂O.
 
@@ -246,12 +246,12 @@ def adsorption_isotherm_2(pressure, temperature, y1, y2, bed_properties, isother
         qsb = 5.84 #mol/kg
         qsd = 0.00 #mol/kg
 
-        load_kg = (qsb * b1 * c1 / (1 + b1 * c1 + b2 * c2) + 
-                                     qsd * d1 * c1 / (1 + d1 * c1 + d2 * c2))  # mol/kg
+        load_kg = (qsb * b2 * c2 / (1 + b1 * c1 + b2 * c2) + 
+                                     qsd * d2 * c2 / (1 + d1 * c1 + d2 * c2))  # mol/kg
 
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -36000 #  R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
-    
+
+        ΔH = -15800  #  R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
 
     return load_m3, ΔH
 
@@ -344,7 +344,7 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid)
    
 
     ΔH1 = adsorption_isotherm_1(P[:, -1], T[:, -1], y1[:, -1], y2[:, -1], y3[:,-1], n1[:,-1], bed_props)[1]
-    ΔH2 = adsorption_isotherm_2(P[:, -1], T[:, -1], y2[:, -1], bed_props)[1]
+    ΔH2 = adsorption_isotherm_2(P[:, -1], T[:, -1], y1[:,-1], y2[:, -1], bed_props)[1]
 
     heat_gen = (1 - ε) * A * np.sum(
         (np.abs(ΔH1) * (n1[:, -1] - n1[:, 0]) +
@@ -416,7 +416,7 @@ def create_combined_plot(time, T_result, P_result, y1_result, n1_result, y1_wall
         
 
         (y1_walls_result, "Gas phase CO2 at exit against time", "Gas Phase CO2 (mol fraction)", axes[1, 1]),
-        (v_walls_result * 60 * 1e6 * bed_properties["column_area"] * bed_properties["bed_voidage"], "Outlet flow rate", "Exit flowrate (cm³/s)", axes[1, 2])
+        (v_walls_result * bed_properties["inner_bed_radius"]**2 * np.pi * bed_properties["bed_voidage"], "Outlet flow rate", "Exit flowrate (m³/s)", axes[1, 2])
     ]
     
     # Plot each variable
