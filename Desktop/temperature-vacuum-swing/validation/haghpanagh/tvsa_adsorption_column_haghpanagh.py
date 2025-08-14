@@ -392,7 +392,7 @@ def ghost_cell_calculations(P, T, Tw, y1, y2, y3,
         column_grid["xCentres"][-1])"""
     
     y3_ghost_start = y3[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
-                    (y3[0] - y1_inlet) / (column_grid["xCentres"][column_grid["nGhost"]] - 
+                    (y3[0] - y3_inlet) / (column_grid["xCentres"][column_grid["nGhost"]] - 
                                        column_grid["xWalls"][column_grid["nGhost"]])
     
     y3_ghost_end = y3[-1] - (column_grid["xCentres"][-1] - column_grid["xCentres"][-column_grid["nGhost"]-1]) * \
@@ -415,7 +415,7 @@ def ghost_cell_calculations(P, T, Tw, y1, y2, y3,
         column_grid["xCentres"][-1])"""
     
     T_ghost_start = T[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
-                    (T[0] - y1_inlet) / (column_grid["xCentres"][column_grid["nGhost"]] - 
+                    (T[0] - T_inlet) / (column_grid["xCentres"][column_grid["nGhost"]] - 
                                        column_grid["xWalls"][column_grid["nGhost"]])
     
     T_ghost_end = T[-1] - (column_grid["xCentres"][-1] - column_grid["xCentres"][-column_grid["nGhost"]-1]) * \
@@ -702,11 +702,8 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     )
 
     # Column energy balance terms
-    conduction_term = + ( K_z * bed_properties["bed_voidage"] *
-                      (1 / column_grid["deltaZ"][1:-1]) *
-                      (dTdz_walls[1:num_cells+1] - dTdz_walls[:num_cells]))
 
-    convection_term = - (bed_properties["bed_voidage"] * 1 / column_grid["deltaZ"][1:-1] 
+    convection_term = - Cp_g * (bed_properties["bed_voidage"] * 1 / column_grid["deltaZ"][1:-1] 
                          * (P_walls[1:num_cells+1] * v_walls[1:num_cells+1] / bed_properties["R"] - 
                             P_walls[:num_cells] * v_walls[:num_cells] / bed_properties["R"]))
     
@@ -720,7 +717,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     dy1dz = (y1_all[1:num_cells+2]- y1_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
     dy2dz = (y2_all[1:num_cells+2]- y2_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
     dy3dz = (y3_all[1:num_cells+2]- y3_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
-    dy4dz = 1 - dy1dz - dy2dz - dy3dz
+    dy4dz = - dy1dz - dy2dz - dy3dz
 
     dispersion_term = + ( bed_properties["bed_voidage"] * D_l / bed_properties["R"] *
                           ( 1 / column_grid["deltaZ"][1:-1] * 

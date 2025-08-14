@@ -139,7 +139,7 @@ def cubic_extrapolation_derivative_nonzero(x0, y0, x1, y1, x2, y2, x, a, b):
 # 3. ISOTHERM EQUILIBRIA
 # ============================================================
 
-def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties, isotherm_type_1="Dual_site Langmuir"):
+def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties, isotherm_type_1="Haghpanagh"):
     """
     Toth isotherm for CO₂ on solid sorbent.
 
