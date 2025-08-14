@@ -688,16 +688,17 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     # \frac{K_z}{\varepsilon \Delta z}\left(\frac{\partial T}{\partial z}|_{i+1/2} - \frac{\partial T}{\partial z}|_{i-1/2}\right) - \frac{C_{p,g}}{R \Delta z} \left(P_{i+1/2} \ v_{i+1/2} - P_{i-1/2}v_{i-1/2} \right) \right.\\
     # - \frac{C_{p,g}}{R} \left( - \dfrac{(1-\varepsilon)}{\varepsilon}{RT} \left(\frac{\partial q_1}{\partial t}+\frac{\partial q_2}{\partial t}\right) - \frac{1}{\varepsilon} \frac{T}{\Delta z} \left( \frac{P_{i+1/2} \ v_{i+1/2}}{T_{i+1/2}}-\frac{P_{i-1/2} \ v_{i-1/2}}{T_{i-1/2}} \right) \right) \\ \left. + \frac{1-\varepsilon}{\varepsilon} \left(  \Delta H_1 \frac{\partial q_1}{\partial t} +\Delta H_2 \frac{\partial q_2}{\partial t}\right)
     # + \frac{1-\varepsilon}{\varepsilon}  C_{p,ads} T \left( \frac{\partial q_1}{\partial t} + \frac{\partial q_2}{\partial t}\right) + \frac{2h_{bed}}{R_{in}}(T-T_w)\right]"""
-    
+   
+   
     # =========================================================================
     # TOTAL ENERGY BALANCE - UGLY VERSION
     # =========================================================================
 
     a_2 = (
-        bed_properties["total_voidage"] * P / (bed_properties["R"] * T) * Cp_g 
         + bed_properties["bed_density"] * Cp_solid
         + (1 - bed_properties["bed_voidage"]) * (Cp_1 * n1 + Cp_2 * n2)
-        -  bed_properties["bed_voidage"] * P / T
+        + Cp_g *  bed_properties["total_voidage"] * P / (bed_properties["R"] * T)
+        - bed_properties["total_voidage"] * P / T
     )
 
     # Column energy balance terms
@@ -719,22 +720,22 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     dy1dz = (y1_all[1:num_cells+2]- y1_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
     dy2dz = (y2_all[1:num_cells+2]- y2_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
     dy3dz = (y3_all[1:num_cells+2]- y3_all[0:num_cells+1]) / (column_grid["xCentres"][1:num_cells+2] - column_grid["xCentres"][0:num_cells+1])
-    dy4dz = - dy1dz - dy2dz - dy3dz
+    dy4dz = 1 - dy1dz - dy2dz - dy3dz
 
     dispersion_term = + ( bed_properties["bed_voidage"] * D_l / bed_properties["R"] *
                           ( 1 / column_grid["deltaZ"][1:-1] * 
                            (P_walls[1:num_cells+1] * (Cp_1 *dy1dz[1:num_cells+1] + Cp_2 * dy2dz[1:num_cells+1] + 
                                                       Cp_3 * dy3dz[1:num_cells+1] + Cp_4 * dy4dz[1:num_cells+1])
-                                                      - P_walls[:num_cells] * (Cp_1 * dy1dz[:num_cells] + Cp_2 * dy2dz[:num_cells] + 
+                            - P_walls[:num_cells] * (Cp_1 * dy1dz[:num_cells] + Cp_2 * dy2dz[:num_cells] + 
                                                                                  Cp_3 * dy3dz[:num_cells] + Cp_4 * dy4dz[:num_cells]))
     ))
 
     adsorbent_heat_generation = + (1-bed_properties["bed_voidage"]) * (np.abs(deltaH_1) * dn1dt + np.abs(deltaH_2) * dn2dt)
 
-    accumulation_term = - (bed_properties["bed_voidage"] * (1-bed_properties["bed_voidage"])/bed_properties["total_voidage"]
+    accumulation_term = - ((1-bed_properties["bed_voidage"])
                            * bed_properties["R"] * T * (dn1dt + dn2dt)
 
-                           + bed_properties["bed_voidage"]**2/bed_properties["total_voidage"] 
+                           + bed_properties["bed_voidage"] 
                            * T / column_grid["deltaZ"][1:-1] *
                            (P_walls[1:num_cells+1] * v_walls[1:num_cells+1] / T_walls[1:num_cells+1] -
                             P_walls[:num_cells] * v_walls[:num_cells] / T_walls[:num_cells]))
@@ -744,6 +745,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, inlet_value
     
     dTdt = (1 / a_2 * (conduction_term + convection_term + kinetic_term + dispersion_term +
                       adsorbent_heat_generation + accumulation_term + heat_transfer_term))
+
 
 
 
