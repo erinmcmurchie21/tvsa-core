@@ -31,6 +31,7 @@ class ParameterFitter:
         self.best_params = None
         self.best_result = None
         self.optimization_history = []
+        self.tot_time = 3000
 
     # Define the objective function for parameter fitting
     def objective_function(self, parameters, param_names, weights=None):
@@ -51,7 +52,7 @@ class ParameterFitter:
         atol_array = self.simulation_conditions["atol_array"]
         
         # Determine time span for ODE solver based on data
-        time_span = (0, 3000)
+        time_span = (0, self.tot_time)
         
         # Define ODE function
         def ODE_func(t, results_vector):
@@ -69,7 +70,7 @@ class ParameterFitter:
             y1_walls_result, y2_walls_result, y3_walls_result, \
             v_walls_result = column.final_wall_values(column_grid, bed_properties, inlet_values, outlet_values, output_matrix)
         # Extract simulation results
-        T_sim = output_matrix.y[column_grid["num_cells"]:2*column_grid["num_cells"]]
+        T_sim = output_matrix.y[2*column_grid["num_cells"]:3*column_grid["num_cells"]] * bed_properties["T_ref"]
         y1_sim = y1_walls_result[-1,:]
 
         # Calculate errors
@@ -85,13 +86,13 @@ class ParameterFitter:
         time_temp_observed = self.observed_data["t_temperature"]
 
         # Interpolate simulation to experimental time points
-        temp_sim_interp = np.interp(time_temp_observed, output_matrix.t, T_sim[-1, :])
+        temp_sim_interp = np.interp(time_temp_observed, output_matrix.t, T_sim[9, :])
             #                            ↑            ↑                ↑
             #                    experimental    simulation      outlet node
             #                    time points     time points     temperature
 
 
-        temp_error = 100 / len(T_observed) *np.sum((temp_sim_interp - T_observed)/ T_observed)
+        temp_error = np.abs(100 / len(T_observed) *np.sum((temp_sim_interp - T_observed)/ T_observed))
         error_components['temperature'] = temp_error
         total_error += weights.get('temperature', 1.0) * temp_error
 
@@ -102,7 +103,7 @@ class ParameterFitter:
         # Interpolate simulation to experimental time points
         y1_sim_interp = np.interp(t_molefraction_observed, output_matrix.t, y1_sim)
 
-        molefraction_error = 100 / len(y1_observed) *np.sum((y1_sim_interp - y1_observed)/ y1_observed)
+        molefraction_error = np.abs(100 / len(y1_observed) *np.sum((y1_sim_interp - y1_observed)/ y1_observed))
         error_components['molefraction'] = molefraction_error
         total_error += weights.get('molefraction', 1.0) * molefraction_error
 
@@ -136,7 +137,7 @@ class ParameterFitter:
             bounds,
             seed=42,
             maxiter=0,
-            popsize=5,
+            popsize=1,
             atol=1e-6,
             tol=1e-6,
             disp=True,
@@ -184,7 +185,7 @@ class ParameterFitter:
         atol_array = self.simulation_conditions["atol_array"]
         
         
-        time_span = (0, 3000)
+        time_span = (0, self.tot_time)
         
         # Define ODE function
         def ODE_func(t, results_vector):
@@ -205,21 +206,66 @@ class ParameterFitter:
         
         return output_matrix, y1_walls_result, bed_properties
     
+    def run_initial_simulation(self):
+
+        bed_properties = self.simulation_conditions["bed_properties"]
+        # Set up simulation
+        column_grid = self.simulation_conditions["column_grid"]
+        initial_conditions = self.simulation_conditions["initial_conditions"]
+        inlet_values = self.simulation_conditions["inlet_values"]
+        outlet_values = self.simulation_conditions["outlet_values"]
+        rtol = self.simulation_conditions["rtol"]
+        atol_array = self.simulation_conditions["atol_array"]
+    
+        # Short time span for testing
+        time_span = (0, self.tot_time) # Just 100 seconds
+        
+        def ODE_func(t, results_vector):
+            return column.ODE_calculations(
+                t, 
+                results_vector=results_vector, 
+                column_grid=self.simulation_conditions["column_grid"], 
+                bed_properties=self.simulation_conditions["bed_properties"], 
+                inlet_values=self.simulation_conditions["inlet_values"], 
+                outlet_values=self.simulation_conditions["outlet_values"]
+            )
+
+        print("Running short simulation (3000 seconds)...")
+        output_matrix = solve_ivp(
+            ODE_func, 
+            time_span, 
+            self.simulation_conditions["initial_conditions"], 
+            method='BDF', 
+            rtol=self.simulation_conditions["rtol"], 
+            atol=self.simulation_conditions["atol_array"]
+        )
+
+        P_walls_result, T_walls_result, Tw_walls_result,\
+            y1_walls_result, y2_walls_result, y3_walls_result, \
+            v_walls_result = column.final_wall_values(column_grid, bed_properties, inlet_values, outlet_values, output_matrix)
+
+        return output_matrix, y1_walls_result, bed_properties
+
     def plot_results(self):
 
-        output_matrix, y1_walls_result, bed_properties = self.run_best_simulation()
+        output_matrix_fitted, y1_walls_result_fitted, bed_properties = self.run_best_simulation()
+        #output_matrix_initial, y1_walls_result_initial, bed_properties_initial = self.run_initial_simulation()
         column_grid = self.simulation_conditions["column_grid"]
         # Extract simulation results
-        T_sim = output_matrix.y[column_grid["num_cells"]:2*column_grid["num_cells"]]
-        y1_sim = y1_walls_result
+        #T_sim_initial = output_matrix_initial.y[2*column_grid["num_cells"]:3*column_grid["num_cells"]]
+        #y1_sim_initial = y1_walls_result_initial
+        T_sim_fitted = output_matrix_fitted.y[2*column_grid["num_cells"]:3*column_grid["num_cells"]] * bed_properties["T_ref"] 
+        y1_sim_fitted = y1_walls_result_fitted
 
-         # Create plots
+        # Create plots
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
         # Temperature plot
-        axes[0].plot(output_matrix.t, T_sim[-1, :], 
+        axes[0].plot(output_matrix_fitted.t, T_sim_fitted[9, :], 
                            label="Fitted", linewidth=2, linestyle='-')
         axes[0].plot(self.observed_data['t_temperature'], self.observed_data['temperature'], 
                     'ro', label='Experimental', markersize=4)
+        #axes[0].plot(output_matrix_initial.t, T_sim_initial[9, :], 
+                           #label="Initial", linewidth=2, linestyle='-')
         axes[0].set_xlabel('Time (s)')
         axes[0].set_ylabel('Temperature (K)')
         axes[0].set_title('Temperature Comparison')
@@ -227,10 +273,12 @@ class ParameterFitter:
         axes[0].grid(True, alpha=0.3)
 
         # Mole fraction plot
-        axes[1].plot(output_matrix.t, y1_sim[-1,:], 
+        axes[1].plot(output_matrix_fitted.t, y1_sim_fitted[-2,:], 
                            label="Fitted", linewidth=2, linestyle='-')
         axes[1].plot(self.observed_data['t_molefraction'], self.observed_data['molefraction'], 
                     'ro', label='Experimental', markersize=4)
+        #axes[1].plot(output_matrix_initial.t, y1_sim_initial[-2,:], 
+                           #label="Initial", linewidth=2, linestyle='-')
         axes[1].set_xlabel('Time (s)')
         axes[1].set_ylabel('Mole Fraction')
         axes[1].set_title('Mole Fraction Comparison')
@@ -251,13 +299,12 @@ class ParameterFitter:
 
 # function to perform parameter fitting
 
-
-def main():
+def main(self):
 
 
     # Import data
     time_observed_temperature = np.loadtxt('pini_data_temperature.csv', delimiter=',', usecols=0)  # First column
-    temperature_observed = np.loadtxt('pini_data_temperature.csv', delimiter=',', usecols=1)  # Second column
+    temperature_observed = np.loadtxt('pini_data_temperature.csv', delimiter=',', usecols=1)+273.15  # Second column
 
     time_observed_molefraction = np.loadtxt('pini_data_molefraction.csv', delimiter=',', usecols=0)  # First column
     molefraction_observed = np.loadtxt('pini_data_molefraction.csv', delimiter=',', usecols=1)  # Second column
@@ -288,8 +335,8 @@ def main():
 
     # Define parameters to fit
     param_names = ["h_bed", "h_wall"]
-    initial_guess = [140.0, 20.0]
-    bounds = [(10, 500), (5, 100)]  # (min, max) for each parameter
+    initial_guess = [30.0, 10.0]
+    bounds = [(5, 50), (5, 50)]  # (min, max) for each parameter
 
     weights = {'temperature': 1.0, 'molefraction': 1.0}
     # Fit parameters
@@ -300,5 +347,19 @@ def main():
         weights=weights
     )
 
+    output_matrix_fitted, y1_walls_result_fitted, bed_properties = self.run_best_simulation()   
+    T_sim_fitted = output_matrix_fitted.y[2*column_grid["num_cells"]:3*column_grid["num_cells"]] * bed_properties["T_ref"] 
+    y1_sim_fitted = y1_walls_result_fitted
+    
+    #Output data
+    print("\nFitted Parameters:" )
+    print(f"Best parameters: {fitter.best_params}")
+    print(f"Final error: {result.fun}")
+    print(f"T_sim_fitted: {T_sim_fitted}")
+    print(f"y1_sim_fitted: {y1_sim_fitted}")
+    
     # Plot results
-    fitter.plot_results()
+    #fitter.plot_results()
+
+if __name__ == "__main__":
+    main() 
