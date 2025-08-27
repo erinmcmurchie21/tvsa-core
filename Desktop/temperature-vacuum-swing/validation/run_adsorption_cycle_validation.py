@@ -40,6 +40,7 @@ def create_fixed_properties():
     "heat_capacity_2": 30,  # Example value for adsorbed phase heat capacity of component 2 (H2O)
     "mass_transfer_1": 0.0002,  # Example value for mass transfer coefficient of component 1 (CO2) in s-1
     "mass_transfer_2": 0.002,  # Example value for mass transfer coefficient of component 2 (H2O) in s-1
+    "K_z":1, # Example value for axial dispersion coefficient in m²/s
     "h_bed": 50,  # 140,  # Example value for bed heat transfer coefficient in W/m²·K
     "h_wall": 7,  # 20,  # Example value for wall heat transfer coefficient in W
     "MW_1": 44.01,  # Molecular weight of component 1 (CO2) in g/mol
@@ -91,8 +92,8 @@ def create_fixed_properties():
 
 # Define bed inlet values (subject to variation)
 def define_boundary_conditions(bed_properties):
-    inlet_values = {
-        "inlet_type": "mass_flow",
+    left_values = {
+        "left_type": "mass_flow",
         "velocity": 100 / 60 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"],  # Example value for interstitial velocity in m/s
         "rho_gas": 1.13,  # Example value for feed density in kg/m^3
         "feed_volume_flow": 1.6667e-6,  # cm³/min to m³/s
@@ -104,12 +105,14 @@ def define_boundary_conditions(bed_properties):
         "y3_feed_value": 1e-6,  # Example value for feed mole fraction
     }
         # Define bed outlet values (subject to variation)
-    outlet_values = {
-        "outlet_type": "pressure",
-        "outlet_pressure": 101325,  # Example value for outlet pressure in Pa
-        "outlet_temperature": 293.15,  # Example value for outlet temperature in Kelvin
+    right_values = {
+        "right_type": "pressure",
+        "right_pressure": 101325,  # Example value for outlet pressure in Pa
+        "right_temperature": 293.15,  # Example value for outlet temperature in Kelvin
         }
-    return inlet_values, outlet_values
+    
+    column_direction = "forwards"
+    return left_values, right_values, column_direction
 
 
 # Running simulation! ======================================================================================================
@@ -127,12 +130,12 @@ E_result = []
 
 # Implement solver
 bed_properties, column_grid, initial_conditions, rtol, atol_array = create_fixed_properties()
-inlet_values, outlet_values = define_boundary_conditions(bed_properties)
+left_values, right_values, column_direction = define_boundary_conditions(bed_properties)
 t_span = [0, 3000]  # Time span for the ODE solver
 
 t0=time.time()
 def ODE_func(t, results_vector,):
-    return column.ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=bed_properties, inlet_values=inlet_values, outlet_values=outlet_values)
+    return column.ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=bed_properties, left_values=left_values, right_values=right_values, column_direction=column_direction)
 output_matrix = solve_ivp(ODE_func, t_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array)
 t1=time.time()
 total_time = t1 - t0
@@ -159,10 +162,11 @@ print("Duration of simulation:", time[-1], "seconds")
 # Calculate the exit column values
 (P_walls_result, T_walls_result, Tw_walls_result,
  y1_walls_result, y2_walls_result, y3_walls_result,
- v_walls_result) = column.final_wall_values(column_grid, bed_properties, inlet_values, outlet_values, output_matrix)
+ v_walls_result) = column.final_wall_values(column_grid, bed_properties, left_values, right_values, output_matrix)
 
 # Create the combined plot
 #create_combined_plot(time, T_result, P_result, y1_result, n1_result, y1_walls_result, v_walls_result, bed_properties)
 
-#create_plot(time, T_result, "Temperature evolution", "Temperature")
-#create_plot(time, n1_result, "Adsorbed phase", "CO2 adsorbed (mol/m^3)")
+create_plot(time, T_result, "Temperature evolution", "Temperature")
+create_plot(time, n1_result, "Adsorbed phase", "CO2 adsorbed (mol/m^3)")
+create_plot(time, y1_result, "Outlet concentration", "CO2 outlet concentration (mol/m^3)")

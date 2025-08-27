@@ -42,6 +42,8 @@ def create_non_uniform_grid(bed_properties):
         "deltaZ": deltaZ
     }
 
+
+
 # ============================================================
 # 2. EXTRAPOLATION FUNCTIONS
 # ============================================================
@@ -300,6 +302,7 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid)
     z = grid["xCentres"][1:-1]
     Cp_g = calculate_gas_heat_capacity()
     Cp_s = bed_props["sorbent_heat_capacity"]
+
     bed_density = bed_props["bed_density"] # kg/m³
     Cp_1 = bed_props["heat_capacity_1"] # J/(mol*K)
     Cp_2 = bed_props["heat_capacity_2"] # J/(mol*K)
