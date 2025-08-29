@@ -107,7 +107,7 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
          v_inlet, dPdz_inlet, dTwdz_inlet)
     """
     
-    if left_values["inlet_type"] == "mass_flow":
+    if left_values["left_type"] == "mass_flow":
         # Calculate transport properties at inlet conditions
         rho_gas_left = func.calculate_gas_density(P[0], T[0])  # [mol/m³]
         mu = func.calculate_gas_viscosity()                     # [Pa·s]
@@ -122,20 +122,20 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
             column_grid["xCentres"][column_grid["nGhost"]], y1[0], 
             column_grid["xCentres"][column_grid["nGhost"]+1], y1[1],
             column_grid["xWalls"][column_grid["nGhost"]], 
-            -np.abs(v_inlet / D_l), left_values["y1_feed_value"])
+            -np.abs(v_left / D_l), left_values["y1_left_value"])
 
         y2_left = func.quadratic_extrapolation_derivative_nonzero(
             column_grid["xCentres"][column_grid["nGhost"]], y2[0], 
             column_grid["xCentres"][column_grid["nGhost"]+1], y2[1],
            column_grid["xWalls"][column_grid["nGhost"]], 
-           -np.abs(v_inlet / D_l), left_values["y2_feed_value"])
+           -np.abs(v_left / D_l), left_values["y2_left_value"])
 
 
         y3_left = func.quadratic_extrapolation_derivative_nonzero(
            column_grid["xCentres"][column_grid["nGhost"]], y3[0], 
            column_grid["xCentres"][column_grid["nGhost"]+1], y3[1],
            column_grid["xWalls"][column_grid["nGhost"]], 
-           -np.abs(v_inlet / D_l), left_values["y3_feed_value"])
+           -np.abs(v_left / D_l), left_values["y3_left_value"])
 
         #y1_inlet = (y1[0] + v_inlet/D_l * inlet_values["y1_feed_value"] * column_grid["xCentres"][column_grid["nGhost"]]) / (1 + v_inlet/D_l * column_grid["xCentres"][column_grid["nGhost"]])
         #y2_inlet = (y2[0] + v_inlet/D_l * inlet_values["y2_feed_value"] * column_grid["xCentres"][column_grid["nGhost"]]) / (1 + v_inlet/D_l * column_grid["xCentres"][column_grid["nGhost"]])
@@ -170,7 +170,7 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
            column_grid["xCentres"][column_grid["nGhost"]], T[0], 
            column_grid["xCentres"][column_grid["nGhost"]+1], T[1],
            column_grid["xWalls"][column_grid["nGhost"]], 
-           -np.abs(v_left) * bed_properties["bed_voidage"] / thermal_diffusivity, left_values["feed_temperature"])
+           -np.abs(v_left) * bed_properties["bed_voidage"] / thermal_diffusivity, left_values["left_temperature"])
 
         # Wall temperature boundary conditions
         Tw_left = Tw[0]
@@ -178,9 +178,9 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
 
     elif left_values["left_type"] == "closed":
         # Closed inlet: zero gradients for all variables
-        dPdz_inlet = 0
-        P_inlet = P[0]
-        v_inlet = 0
+        dPdz_left = 0
+        P_left = P[0]
+        v_left = 0
         
         # Use zero-gradient extrapolation for composition variables
         y1_left = func.quadratic_extrapolation_derivative(
@@ -202,6 +202,7 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
             column_grid["xCentres"][column_grid["nGhost"]], T[0], 
             column_grid["xCentres"][column_grid["nGhost"]+1], T[1],
             column_grid["xWalls"][column_grid["nGhost"]])
+        
         
         Tw_left = Tw[0]                            
         dTwdz_left = 0
@@ -513,7 +514,7 @@ def calculate_internal_wall_values(P_all, T_all, Tw_all, y1_all, y2_all, y3_all,
     thermal_diffusivity = func.calculate_gas_thermal_conductivity() / (Cp_g * rho_gas_inlet)
     Pe_h = bed_properties["bed_voidage"] / thermal_diffusivity
     v_left = left_values["velocity"] 
-    dTdz_walls[0] = -(v_left * Pe_h) * (left_values["feed_temperature"] - T_left)  # set inlet temperature gradient
+    dTdz_walls[0] = -(v_left * Pe_h) * (left_values["left_temperature"] - T_left)  # set inlet temperature gradient
 
     #calculate dP/dz at internal cell walls by linear interpolation
     dPdz_walls =  np.array((P_all[1:Nx+2]- P_all[0:Nx+1]) / (column_grid["xCentres"][1:Nx+2] - column_grid["xCentres"][0:Nx+1]))
@@ -557,7 +558,7 @@ def calculate_internal_wall_values(P_all, T_all, Tw_all, y1_all, y2_all, y3_all,
     
     return P_walls, T_walls, Tw_walls, y1_walls, y2_walls, y3_walls, v_walls, dTdz_walls, dTwdz_walls
 
-def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values, right_values, column_direction):
+def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values, right_values, column_direction, stage):
     """
     Calculate the ODEs for the adsorption column model.
     
@@ -794,20 +795,23 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     # =========================================================================
     # WALL ENERGY BALANCE
     # =========================================================================
-    
-    # Wall temperature second derivative
-    d2Twdt2 = (1 / column_grid["deltaZ"][1:-1] * 
-              (dTwdz_walls[1:num_cells+1] - dTwdz_walls[:num_cells]))
-    
-    wall_conduction = K_wall * d2Twdt2
-    bed_heat_exchange = (2 * bed_properties["inner_bed_radius"] * h_bed * (T - Tw) / 
-                        (bed_properties["outer_bed_radius"]**2 - bed_properties["inner_bed_radius"]**2))
-    ambient_heat_loss = (-2 * bed_properties["outer_bed_radius"] * h_wall * 
-                        (Tw - bed_properties["ambient_temperature"]) / 
-                        (bed_properties["outer_bed_radius"]**2 - bed_properties["inner_bed_radius"]**2))
-    
-    dTwdt = (1 / (bed_properties["wall_heat_capacity"] * bed_properties["wall_density"]) * 
-            (wall_conduction + bed_heat_exchange + ambient_heat_loss))
+    if stage == "heating":
+        dTwdt = np.zeros(num_cells)
+        bed_properties["h_wall"] = 0  # W/m^2.K
+    else:
+        # Wall temperature second derivative
+        d2Twdt2 = (1 / column_grid["deltaZ"][1:-1] * 
+                (dTwdz_walls[1:num_cells+1] - dTwdz_walls[:num_cells]))
+        
+        wall_conduction = K_wall * d2Twdt2
+        bed_heat_exchange = (2 * bed_properties["inner_bed_radius"] * h_bed * (T - Tw) / 
+                            (bed_properties["outer_bed_radius"]**2 - bed_properties["inner_bed_radius"]**2))
+        ambient_heat_loss = (-2 * bed_properties["outer_bed_radius"] * h_wall * 
+                            (Tw - bed_properties["ambient_temperature"]) / 
+                            (bed_properties["outer_bed_radius"]**2 - bed_properties["inner_bed_radius"]**2))
+        
+        dTwdt = (1 / (bed_properties["wall_heat_capacity"] * bed_properties["wall_density"]) * 
+                (wall_conduction + bed_heat_exchange + ambient_heat_loss))
     
     #"""\frac{\partial T_w}{\partial t} =
     #\frac{1}{\rho_w \ C_{p,wall}} \left(\frac{K_{wall}}{\Delta z}\left(\frac{\partial T_w}{\partial z}|_{i+1/2} - \frac{\partial T_w}{\partial z}|_{i-1/2}\right) 

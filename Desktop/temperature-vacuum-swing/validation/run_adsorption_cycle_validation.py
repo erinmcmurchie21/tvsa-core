@@ -1,7 +1,7 @@
 
 import numpy as np
 from scipy.integrate import solve_ivp
-from additional_functions_validation import create_non_uniform_grid, adsorption_isotherm_1, adsorption_isotherm_2, total_mass_balance_error, CO2_mass_balance_error, energy_balance_error, create_plot, create_combined_plot
+from additional_functions_validation import create_non_uniform_grid, adsorption_isotherm_1, adsorption_isotherm_2, total_mass_balance_error, CO2_mass_balance_error, energy_balance_error, create_plot, create_combined_plot, create_quick_plot, build_jacobian
 from scipy import integrate
 import time
 import matplotlib.pyplot as plt
@@ -40,7 +40,7 @@ def create_fixed_properties():
     "heat_capacity_2": 30,  # Example value for adsorbed phase heat capacity of component 2 (H2O)
     "mass_transfer_1": 0.0002,  # Example value for mass transfer coefficient of component 1 (CO2) in s-1
     "mass_transfer_2": 0.002,  # Example value for mass transfer coefficient of component 2 (H2O) in s-1
-    "K_z":1, # Example value for axial dispersion coefficient in m²/s
+    "K_z": 0.1, # Example value for axial dispersion coefficient in m²/s
     "h_bed": 50,  # 140,  # Example value for bed heat transfer coefficient in W/m²·K
     "h_wall": 7,  # 20,  # Example value for wall heat transfer coefficient in W
     "MW_1": 44.01,  # Molecular weight of component 1 (CO2) in g/mol
@@ -73,8 +73,8 @@ def create_fixed_properties():
     E = np.zeros(3)  # Additional variables (e.g., flow rates, mass balances)
     initial_conditions = np.concatenate([P/bed_properties["P_ref"], T/bed_properties["T_ref"], Tw/ bed_properties["T_ref"], y1, y2, y3, n1/bed_properties["n_ref"], n2/bed_properties["n_ref"], F, E])
 
+    #Tolerances
     rtol = 1e-5
-
     atol_P = 1e-5 * np.ones(len(P))
     atol_T = 1e-4 * np.ones(len(T))
     atol_Tw = 1e-5 * np.ones(len(Tw))
@@ -91,82 +91,193 @@ def create_fixed_properties():
     return bed_properties, column_grid, initial_conditions, rtol, atol_array
 
 # Define bed inlet values (subject to variation)
-def define_boundary_conditions(bed_properties):
-    left_values = {
-        "left_type": "mass_flow",
-        "velocity": 100 / 60 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"],  # Example value for interstitial velocity in m/s
-        "rho_gas": 1.13,  # Example value for feed density in kg/m^3
-        "feed_volume_flow": 1.6667e-6,  # cm³/min to m³/s
-        "feed_mass_flow": (0.01 * float(bed_properties["column_area"]) * 1.13),  # Example value for feed mass flow in kg/s
-        "feed_temperature": 293.15,  # Example value for feed temperature in Kelvin
-        "feed_pressure": 101325,  # Example value for feed pressure in Pa
-        "y1_feed_value": 0.9999,  # Example value for feed mole fraction
-        "y2_feed_value": 1e-6,  # Example value for feed mole fraction
-        "y3_feed_value": 1e-6,  # Example value for feed mole fraction
-    }
-        # Define bed outlet values (subject to variation)
-    right_values = {
-        "right_type": "pressure",
-        "right_pressure": 101325,  # Example value for outlet pressure in Pa
-        "right_temperature": 293.15,  # Example value for outlet temperature in Kelvin
-        }
+def define_boundary_conditions(stage, bed_properties):
     
-    column_direction = "forwards"
-    return left_values, right_values, column_direction
+    if stage == "adsorption":
+        left_type = "mass_flow"
+        right_type = "pressure"
+        column_direction = "forwards"
+    elif stage == "blowdown":
+        left_type = "closed"
+        right_type = "pressure"
+        column_direction = "forwards"
+    elif stage == "heating":
+        left_type = "closed"
+        right_type = "pressure"
+        column_direction = "forwards"
+    elif stage == "cooling":
+        left_type = "mass_flow"
+        right_type = "pressure"
+        column_direction = "forwards"
 
+    def left_pressure():
+        if stage == "adsorption" or stage == "cooling":
+            pressure = 101325
+        elif stage == "blowdown" or stage == "heating":
+            pressure = None
+        return pressure
+    
+    def left_temperature():
+        temperature = 293.15
+        return temperature
+    
+    def left_gas_composition():
+        y1 = 0.9999
+        y2 = 1e-6
+        y3 = 1e-6
+        return y1, y2, y3
+
+    left_values = {
+        "left_type": left_type,
+        "velocity": 100 / 60 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"],  # Example value for interstitial velocity in m/s
+        "left_volume_flow": 1.6667e-6,  # cm³/min to m³/s
+        "left_mass_flow": (0.01 * float(bed_properties["column_area"]) * 1.13),  # Example value for feed mass flow in kg/s
+        "left_temperature": left_temperature(),  # Example value for feed temperature in Kelvin
+        "left_pressure": left_pressure(),  # Example value for feed pressure in Pa
+        "y1_left_value": left_gas_composition()[0],  # Example value for feed mole fraction
+        "y2_left_value": left_gas_composition()[1],  # Example value for feed mole fraction
+        "y3_left_value": left_gas_composition()[2],  # Example value for feed mole fraction
+    }
+
+    def right_pressure():
+        if stage == "adsorption" or stage == "cooling":
+            pressure = 101325
+        elif stage == "blowdown" or stage == "heating":
+            pressure = 40000
+        return pressure
+
+    def right_temperature():
+        temperature = 293.15
+        return temperature
+
+    def right_gas_composition():
+        y1 = 0.9999
+        y2 = 1e-6
+        y3 = 1e-6
+        return y1, y2, y3
+
+    right_values = {
+        "right_type": right_type,
+        "right_pressure": right_pressure(),  # Example value for outlet pressure in Pa
+        "right_temperature": right_temperature(),  # Example value for outlet temperature in Kelvin
+        "y1_right_value": right_gas_composition()[0],  # Example value for feed mole fraction
+        "y2_right_value": right_gas_composition()[1],  # Example value for feed mole fraction
+        "y3_right_value": right_gas_composition()[2],  # Example value for feed mole fraction
+    }
+    
+    return left_values, right_values, column_direction, stage
+
+
+bed_properties, column_grid, initial_conditions, rtol, atol_array = create_fixed_properties()
+time_profile = []
+temperature_profile = []
+pressure_profile = []
+outlet_CO2_profile = []
+adsorbed_CO2_profile = []
+
+#jacobian = build_jacobian(column_grid["num_cells"])
 
 # Running simulation! ======================================================================================================
 
-P_result = []
-T_result = []
-Tw_result = [] 
-y1_result = []
-y2_result = []
-y3_result = []
-n1_result = []
-n2_result = []
-F_result = []
-E_result = []
+def run_stage(left_values, right_values, column_direction, stage, t_span, initial_conditions):
+    t0 = time.time()
+    def ODE_func(t, results_vector,):
+        return column.ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=bed_properties, left_values=left_values, right_values=right_values, column_direction=column_direction, stage=stage)
+    output_matrix = solve_ivp(ODE_func, t_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array)
+    t1=time.time()
+    total_time = t1 - t0
+        
+    P_result = output_matrix.y[0:column_grid["num_cells"]] * bed_properties["P_ref"]
+    T_result = output_matrix.y[column_grid["num_cells"]:2*column_grid["num_cells"]] * bed_properties["T_ref"]
+    Tw_result = output_matrix.y[2*column_grid["num_cells"]:3*column_grid["num_cells"]] * bed_properties["T_ref"]
+    y1_result = output_matrix.y[3*column_grid["num_cells"]:4*column_grid["num_cells"]]
+    y2_result = output_matrix.y[4*column_grid["num_cells"]:5*column_grid["num_cells"]]
+    y3_result = output_matrix.y[5*column_grid["num_cells"]:6*column_grid["num_cells"]]
+    n1_result = output_matrix.y[6*column_grid["num_cells"]:7*column_grid["num_cells"]] * bed_properties["n_ref"]
+    n2_result = output_matrix.y[7*column_grid["num_cells"]:8*column_grid["num_cells"]] * bed_properties["n_ref"]
+    F_result = output_matrix.y[8*column_grid["num_cells"]:8*column_grid["num_cells"]+8]
+    E_result = output_matrix.y[8*column_grid["num_cells"]+8:]
+    time_array = output_matrix.t
 
-# Implement solver
-bed_properties, column_grid, initial_conditions, rtol, atol_array = create_fixed_properties()
-left_values, right_values, column_direction = define_boundary_conditions(bed_properties)
+    print("Mass balance error:", total_mass_balance_error(F_result, P_result, T_result, n1_result, n2_result, time_array, bed_properties, column_grid))
+    print("CO2 mass balance error:", CO2_mass_balance_error(F_result, P_result, T_result, y1_result, n1_result, time_array, bed_properties, column_grid))
+    print("Energy balance error:", energy_balance_error(E_result, T_result, P_result, y1_result, y2_result, y3_result, n1_result, n2_result, Tw_result, time_array, bed_properties, column_grid))
+    print("Total simulation time of stage:", total_time, "seconds")
+    print("Duration of simulation:", time_array[-1], "seconds")
+
+    # Calculate the exit column values
+    (P_walls_result, T_walls_result, Tw_walls_result,
+    y1_walls_result, y2_walls_result, y3_walls_result,
+    v_walls_result) = column.final_wall_values(column_grid, bed_properties, left_values, right_values, output_matrix)
+
+    # Adjust time array to account for previous stages
+    if len(time_profile) == 0:
+        time_offset = 0
+    else:
+        time_offset = time_profile[-1]
+        
+    print("Time offset:", time_offset)
+    adjusted_time_array = time_array + time_offset
+    print("length of time", adjusted_time_array[-1])
+
+    # Extend the profiles instead of appending arrays
+    time_profile.extend(adjusted_time_array)
+    temperature_profile.extend(T_result[9])
+    outlet_CO2_profile.extend(y1_walls_result[-1])
+    pressure_profile.extend(P_walls_result[0])
+    adsorbed_CO2_profile.extend(n1_result[9])
+
+    #Extract final values as initial conditions
+    P_final = P_result[:,-1]
+    T_final = T_result[:,-1]
+    Tw_final = Tw_result[:,-1]
+    y1_final = y1_result[:,-1]
+    y2_final = y2_result[:,-1]
+    y3_final = y3_result[:,-1]
+    n1_final = n1_result[:,-1]
+    n2_final = n2_result[:,-1]
+    F_final = np.zeros(8)
+    E_final = np.zeros(3)
+
+    final_conditions = np.concatenate([P_final/bed_properties["P_ref"], T_final/bed_properties["T_ref"], Tw_final/ bed_properties["T_ref"], y1_final, y2_final, y3_final, n1_final/bed_properties["n_ref"], n2_final/bed_properties["n_ref"], F_final, E_final])
+
+    #create_plot(time_array, T_result, "Temperature evolution", "Temperature")
+    #create_plot(time_array, P_result, "Pressure evolution", "Pressure")
+    #create_plot(time_array, y1_result, "CO2 mole fraction evolution", "Mole fraction")
+    #create_plot(time_array, n1_result, "CO2 adsorbed amount evolution", "Adsorbed amount")
+
+    return final_conditions, temperature_profile, outlet_CO2_profile, time_profile, pressure_profile, adsorbed_CO2_profile
+
+# Stage 1 of cycle - Adsorption ===========================================================================================
+
+left_values, right_values, column_direction, stage = define_boundary_conditions("adsorption", bed_properties)
 t_span = [0, 3000]  # Time span for the ODE solver
 
-t0=time.time()
-def ODE_func(t, results_vector,):
-    return column.ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=bed_properties, left_values=left_values, right_values=right_values, column_direction=column_direction)
-output_matrix = solve_ivp(ODE_func, t_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array)
-t1=time.time()
-total_time = t1 - t0
-    
+final_conditions_adsorption, temperature_profile, outlet_CO2_profile, time_profile, pressure_profile, adsorbed_CO2_profile = run_stage(left_values, right_values, column_direction, stage, t_span, initial_conditions)
 
-P_result = output_matrix.y[0:column_grid["num_cells"]] * bed_properties["P_ref"]
-T_result = output_matrix.y[column_grid["num_cells"]:2*column_grid["num_cells"]] * bed_properties["T_ref"]
-Tw_result = output_matrix.y[2*column_grid["num_cells"]:3*column_grid["num_cells"]] * bed_properties["T_ref"]
-y1_result = output_matrix.y[3*column_grid["num_cells"]:4*column_grid["num_cells"]]
-y2_result = output_matrix.y[4*column_grid["num_cells"]:5*column_grid["num_cells"]]
-y3_result = output_matrix.y[5*column_grid["num_cells"]:6*column_grid["num_cells"]]
-n1_result = output_matrix.y[6*column_grid["num_cells"]:7*column_grid["num_cells"]] * bed_properties["n_ref"]
-n2_result = output_matrix.y[7*column_grid["num_cells"]:8*column_grid["num_cells"]] * bed_properties["n_ref"]
-F_result = output_matrix.y[8*column_grid["num_cells"]:8*column_grid["num_cells"]+8]
-E_result = output_matrix.y[8*column_grid["num_cells"]+8:]
-time = output_matrix.t
+# Stage 2 of cycle - Blowdown ===============================================================================================
 
-print("Mass balance error:", total_mass_balance_error(F_result, P_result, T_result, n1_result, n2_result, time, bed_properties, column_grid))
-print("CO2 mass balance error:", CO2_mass_balance_error(F_result, P_result, T_result, y1_result, n1_result, time, bed_properties, column_grid))
-print("Energy balance error:", energy_balance_error(E_result, T_result, P_result, y1_result, y2_result, y3_result, n1_result, n2_result, Tw_result, time, bed_properties, column_grid))
-print("Total simulation time:", total_time, "seconds")
-print("Duration of simulation:", time[-1], "seconds")
+# Define boundary conditions for blowdown stage
+left_values_blowdown, right_values_blowdown, column_direction_blowdown, stage = define_boundary_conditions("blowdown", bed_properties)
 
-# Calculate the exit column values
-(P_walls_result, T_walls_result, Tw_walls_result,
- y1_walls_result, y2_walls_result, y3_walls_result,
- v_walls_result) = column.final_wall_values(column_grid, bed_properties, left_values, right_values, output_matrix)
+t_span_blowdown = [0, 100]  # Time span for the ODE solver
 
-# Create the combined plot
-#create_combined_plot(time, T_result, P_result, y1_result, n1_result, y1_walls_result, v_walls_result, bed_properties)
+final_conditions_blowdown, temperature_profile, outlet_CO2_profile, time_profile, pressure_profile, adsorbed_CO2_profile = run_stage(left_values_blowdown, right_values_blowdown, column_direction_blowdown, stage, t_span_blowdown, final_conditions_adsorption)
 
-create_plot(time, T_result, "Temperature evolution", "Temperature")
-create_plot(time, n1_result, "Adsorbed phase", "CO2 adsorbed (mol/m^3)")
-create_plot(time, y1_result, "Outlet concentration", "CO2 outlet concentration (mol/m^3)")
+# Stage 3 of cycle - Heating ===============================================================================================
+
+
+# Define boundary conditions for heating stage
+left_values_heating, right_values_heating, column_direction_heating, stage = define_boundary_conditions("heating", bed_properties)
+
+final_conditions_blowdown[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = 400/bed_properties["T_ref"]  # Set wall temperature to 400 K
+
+t_span_heating = [0, 500]  # Time span for the ODE solver
+
+final_conditions_heating, temperature_profile, outlet_CO2_profile, time_profile, pressure_profile, adsorbed_CO2_profile = run_stage(left_values_heating, right_values_heating, column_direction_heating, stage, t_span_heating, final_conditions_blowdown)
+
+create_quick_plot(time_profile, temperature_profile, "Temperature at column midpoint", "Temperature (K)")
+create_quick_plot(time_profile, pressure_profile, "Pressure at column midpoint", "Pressure (Pa)")
+create_quick_plot(time_profile, outlet_CO2_profile, "Outlet CO2 concentration", "Concentration (mol/m³)")
+create_quick_plot(time_profile, temperature_profile, "Temperature at column midpoint", "Temperature (K)")
+create_quick_plot(time_profile, adsorbed_CO2_profile, "Adsorbed CO2 at column midpoint", "Concentration (mol/m³)")

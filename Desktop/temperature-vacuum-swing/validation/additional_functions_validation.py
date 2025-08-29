@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.integrate
 import matplotlib.pyplot as plt
+import scipy.sparse as sps
 
 # ============================================================
 # 1. GRID DEFINITION
@@ -137,6 +138,67 @@ def cubic_extrapolation_derivative_nonzero(x0, y0, x1, y1, x2, y2, x, a, b):
     y3 = (a*b + term1 + term2 + term3) / (a + 1/(-x0 + x) + 1/(-x1 + x) + 1/(-x2 + x))
 
     return y3
+
+
+def interpolator(time_series, input_func, new_time_points):
+    y_akima = scipy.interpolate.Akima1DInterpolator(time_series, input_func, method="makima")
+    y_interp = lambda new_time_points: y_akima(new_time_points)
+    return y_interp
+
+# ============================================================
+# 3. JACOBIAN SPARSITY PATTERN
+# ============================================================
+
+def build_jacobian(num_cells):
+    n_vars = 8 * num_cells + 8 + 3  # P, T, Tw, y1,y2,y3,n1,n2 + F(8) + E(3)
+
+    # Initialize sparsity as False
+    S = np.zeros((n_vars, n_vars), dtype=int)
+
+     # For each cell, mark dependencies
+    for i in range(num_cells):
+        idxP  = i
+        idxT  = num_cells + i
+        idxTw = 2*num_cells + i
+        idxY1 = 3*num_cells + i
+        idxY2 = 4*num_cells + i
+        idxY3 = 5*num_cells + i
+        idxN1 = 6*num_cells + i
+        idxN2 = 7*num_cells + i
+
+        # Example: dPdt[i] depends on P[i-1:i+1], T[i-1:i+1], Tw[i], Y1,Y2,Y3,N1,N2
+        deps = [idxP, idxT, idxTw, idxY1, idxY2, idxY3, idxN1, idxN2]
+        for j in deps:
+            S[idxP, j] = 1  # P eqn depends on these
+
+        # Similarly fill T, Tw, Y1,Y2,Y3,N1,N2 rows
+        for j in deps:
+            S[idxT, j] = 1
+            S[idxTw, j] = 1
+            S[idxY1, j] = 1
+            S[idxY2, j] = 1
+            S[idxY3, j] = 1
+            S[idxN1, j] = 1
+            S[idxN2, j] = 1
+
+        # Add neighbor coupling (i-1, i+1) for convection/dispersion
+        if i > 0:
+            for row in [idxP, idxT, idxTw, idxY1, idxY2, idxY3]:
+                for col in [idxP-1, idxT-1, idxY1-1, idxY2-1, idxY3-1]:
+                    S[row, col] = 1
+        if i < num_cells-1:
+            for row in [idxP, idxT, idxTw, idxY1, idxY2, idxY3]:
+                for col in [idxP+1, idxT+1, idxY1+1, idxY2+1, idxY3+1]:
+                    S[row, col] = 1
+
+    # Tracking variables F, E depend on boundaries
+    start_F = 8*num_cells
+    start_E = start_F + 8
+    S[start_F:start_F+8, :] = 1
+    S[start_E:start_E+3, :] = 1
+
+    return sps.csr_matrix(S)
+
 # ============================================================
 # 3. ISOTHERM EQUILIBRIA
 # ============================================================
@@ -359,8 +421,20 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid)
 def create_plot(time, result, title, y_label):
     """Quick plot of first, middle, and last node of a variable over time."""
     plt.figure(figsize=(6, 4))
-    for idx, label in zip([0, 14, 29], ['First node', 'Central node', 'Final node']):
+    for idx, label in zip([0, 9, 29], ['First node', 'Central node', 'Final node']):
         plt.plot(time, result[idx], label=label, linewidth=2, marker='o', markersize=3)
+
+    plt.title(title, fontsize=16, fontweight='bold')
+    plt.xlabel('Time', fontsize=12)
+    plt.ylabel(y_label, fontsize=12)
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    plt.show()
+
+def create_quick_plot(time, result, title, y_label):
+    """Quick plot of a variable over time."""
+    plt.figure(figsize=(6, 4))
+    plt.plot(time, result, label='Node', linewidth=2, marker='o', markersize=3)
 
     plt.title(title, fontsize=16, fontweight='bold')
     plt.xlabel('Time', fontsize=12)
