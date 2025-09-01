@@ -334,6 +334,10 @@ def total_mass_balance_error(F, P, T, n1, n2, time, bed_props, grid):
     n_acc_init = ε * A * P[:, 0] / (R * T[:, 0]) + (1 - ε) * A * (n1[:, 0] + n2[:, 0])
 
     mole_acc = scipy.integrate.trapezoid(n_acc_final - n_acc_init, z)
+
+    print("Mole in:", mole_in, "mol")
+    print("Mole out:", mole_out, "mol")
+    print("Mole accumulated:", mole_acc, "mol")
     return np.abs(mole_in - mole_out - mole_acc) / np.abs(mole_acc) * 100
 
 def CO2_mass_balance_error(F, P, T, y1, n1, time, bed_props, grid):

@@ -209,7 +209,7 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
 
     return P_left, T_left, Tw_left, y1_left, y2_left, y3_left, v_left, dPdz_left, dTwdz_left
 
-def right_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, right_values):
+def right_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, right_values, t=0):
     """
     Apply outlet boundary conditions at z=L.
     
@@ -237,9 +237,9 @@ def right_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties,
     """
 
     if right_values["right_type"] == "pressure":
-        # Fixed outlet pressure
-        P_right = right_values["right_pressure"]
-        
+        # Fixed outlet pressure - check if it's a function or direct value
+        P_right = right_values["right_pressure_func"](t)
+
         # Extrapolate composition variables using quadratic interpolation
         
         y1_right = func.quadratic_extrapolation_derivative(
@@ -611,7 +611,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     # Apply outlet boundary conditions
     (P_right, T_right, Tw_right, y1_right, y2_right, y3_right, 
      v_right, dPdz_right, dTwdz_right) = right_boundary_conditions(
-        P, T, Tw, y1, y2, y3, column_grid, bed_properties, right_values)
+        P, T, Tw, y1, y2, y3, column_grid, bed_properties, right_values, t)
     
     # Calculate ghost cell values
     P_all, T_all, Tw_all, y1_all, y2_all, y3_all = ghost_cell_calculations(
@@ -797,7 +797,6 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     # =========================================================================
     if stage == "heating":
         dTwdt = np.zeros(num_cells)
-        bed_properties["h_wall"] = 0  # W/m^2.K
     else:
         # Wall temperature second derivative
         d2Twdt2 = (1 / column_grid["deltaZ"][1:-1] * 
@@ -945,7 +944,7 @@ def final_wall_values(column_grid, bed_properties, left_values, right_values, ou
 
         (P_right, T_right, Tw_right, y1_right, y2_right, y3_right, 
          v_right, dPdz_right, dTwdz_right) = right_boundary_conditions(
-             P, T, Tw, y1, y2, y3, column_grid, bed_properties, right_values)
+             P, T, Tw, y1, y2, y3, column_grid, bed_properties, right_values, t)
 
         # Ghost cells
         P_all, T_all, Tw_all, y1_all, y2_all, y3_all = ghost_cell_calculations(
