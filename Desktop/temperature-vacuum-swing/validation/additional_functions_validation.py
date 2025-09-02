@@ -314,6 +314,8 @@ def calculate_gas_density(P, T):
     R = 8.314
     return P / (R * T)  # mol/m³
 
+
+
 # ============================================================
 # 5. BALANCE ERROR FUNCTIONS
 # ============================================================
@@ -482,3 +484,18 @@ def create_combined_plot(time, T_result, P_result, y1_result, n1_result, y1_wall
     
     plt.tight_layout()
     plt.show()
+
+
+#============================================================
+# 7. TESTING FUNCTIONS
+#============================================================
+
+def purity(F, t_cycle, bed_properties):
+
+    mass_of_co2_product = F[4,-1] * bed_properties["molecular_weight_1"]
+
+    mass_of_carrier_gas_product = (F[5,-1] bed_properties["molecular_weight_2"] + F[6,-1] bed_properties["molecular_weight_3"] + F[7,-1] bed_properties["molecular_weight_4"])
+
+    purity = mass_of_co2_product / (mass_of_co2_product + mass_of_carrier_gas_product)
+
+    co2_production_rate = mass_of_co2_product / t_cycle
