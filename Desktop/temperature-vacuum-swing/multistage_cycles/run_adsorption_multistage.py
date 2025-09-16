@@ -437,7 +437,7 @@ def main():
     all_cycle_errors = []  # Track errors across all cycles
     current_initial_conditions = initial_conditions
 
-    for cycle_num in range(1, 4):  # Run cycles 1 through 3
+    for cycle_num in range(1, 11):  # Run cycles 1 through 3
         print("========================================")
         print(f"Starting cycle {cycle_num} of 10 (maximum)")
         
@@ -484,11 +484,11 @@ def main():
         current_initial_conditions = final_conditions_cooling
 
         # Calculate KPIs
-        cycle_purity = np.sum(CO2_mass_out[2]) / (np.sum(CO2_mass_out[2]) + np.sum(carrier_gas_mass[2]))
+        cycle_purity = np.sum(mols_CO2_out[2]) / (np.sum(mols_CO2_out[2]) + np.sum(mols_carrier_gas_out[2]))
         print(f"Cycle {cycle_num} Purity: {cycle_purity:.6f}")
-        CO2_prod_rate = np.sum(CO2_mass_out[1:2]) / time_profile[-1] * 3600 / 1000
+        CO2_prod_rate = np.sum(mols_CO2_out[1:2]) / time_profile[-1] * 3600 / 1000
         print(f"Cycle {cycle_num} CO2 Production Rate: {CO2_prod_rate:.6f}")
-        recovery_rate = np.sum(CO2_mass_out[2]) / np.sum(mass_CO2_in[:])
+        recovery_rate = np.sum(mols_CO2_out[2]) / np.sum(mols_CO2_in[:])
         print(f"Cycle {cycle_num} Recovery Rate: {recovery_rate:.6f}")
         
         # Check convergence after at least 5 cycles
