@@ -93,7 +93,7 @@ def create_fixed_properties():
     return bed_properties, column_grid, initial_conditions, rtol, atol_array
 
 # Define pressure ramp function for blowdown stage
-def pressure_ramp(t, stage, ramp_duration=2.0):
+def pressure_ramp(t, stage, pressure_previous_stage):
     """
     Ramps pressure down from 101325 Pa to 40000 Pa over the specified duration.
     
@@ -105,41 +105,41 @@ def pressure_ramp(t, stage, ramp_duration=2.0):
     Returns:
     float: Pressure in Pa
     """
-
-    if stage == "blowdown":
-        initial_pressure = 101325  # Pa
-        final_pressure = 40000     # Pa
-        ramp_duration = 50
+    if stage == "adsorption":
+        initial_pressure = pressure_previous_stage
+        final_pressure = 101325
         tau = 1 - 1/np.e
-
-        # Adjust this factor to control decay rate
         pressure = final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
 
-        #pressure = initial_pressure + (final_pressure - initial_pressure) * (t / 50)
-
-        
+    elif stage == "blowdown":
+        initial_pressure = pressure_previous_stage  # Pa
+        final_pressure = 40000     # Pa
+        tau = 1 - 1/np.e
+        pressure = final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
+    
+    elif stage == "heating":
+        initial_pressure = pressure_previous_stage  # Pa
+        final_pressure = 40000     # Pa
+        tau = 1 - 1/np.e
+        pressure = final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
+    
     elif stage == "cooling":
-        initial_pressure = 40000  # Pa
+        initial_pressure = pressure_previous_stage  # Pa
         final_pressure = 101325     # Pa
         # Use much longer ramp duration for cooling to avoid steep gradients
-        cooling_ramp_duration = 50  # At least 50 seconds for cooling
-        tau = 1 - 1/np.e
-        tau = 5
-
-        # pressure = final_pressure - (final_pressure - initial_pressure) * np.exp(-t / tau)
-
-        # pressure = initial_pressure + (final_pressure - initial_pressure) * (t / 50)
-
-        if t <= cooling_ramp_duration:
-            # Linear ramp: P(t) = P_initial + (P_final - P_initial) * (t / cooling_ramp_duration)
-            pressure = initial_pressure + (final_pressure - initial_pressure) * (t / cooling_ramp_duration)
+        tau = 10  # Example longer time constant
+        pressure = final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
+        cooling_ramp_duration = 50  # Duration of the cooling ramp in seconds
+        """if t <= cooling_ramp_duration:
+                # Linear ramp: P(t) = P_initial + (P_final - P_initial) * (t / cooling_ramp_duration)
+                pressure = initial_pressure + (final_pressure - initial_pressure) * (t / cooling_ramp_duration)
         else:
-            pressure = final_pressure
+            pressure = final_pressure"""
 
     return pressure
 
 # Define bed inlet values (subject to variation)
-def define_boundary_conditions(stage, bed_properties):
+def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_right):
     
     if stage == "adsorption":
         left_type = "mass_flow"
@@ -176,7 +176,7 @@ def define_boundary_conditions(stage, bed_properties):
         if stage == "adsorption":
             # Return a constant pressure function
             def pressure_func(t):
-                return 101325
+                return pressure_ramp(t, "adsorption", pressure_left)
             return pressure_func
         elif stage == "blowdown":
             # Return the pressure ramp function for blowdown
@@ -191,7 +191,7 @@ def define_boundary_conditions(stage, bed_properties):
         elif stage == "cooling":
             # Return the pressure ramp function for cooling
             def pressure_func(t):
-                return pressure_ramp(t, "cooling")
+                return pressure_ramp(t, "cooling", pressure_left)
             return pressure_func
     
     def left_temperature():
@@ -220,22 +220,22 @@ def define_boundary_conditions(stage, bed_properties):
         if stage == "adsorption":
             # Return a constant pressure function
             def pressure_func(t):
-                return 101325
+                return pressure_ramp(t, "adsorption", pressure_right)
             return pressure_func
         elif stage == "blowdown":
             # Return the pressure ramp function for blowdown
             def pressure_func(t):
-                return pressure_ramp(t, "blowdown")
+                return pressure_ramp(t, "blowdown", pressure_right)
             return pressure_func
         elif stage == "heating":
             # Return a constant pressure function
             def pressure_func(t):
-                return 40000
+                return pressure_ramp(t, "heating", pressure_right)
             return pressure_func
         elif stage == "cooling":
             # Return the pressure ramp function for cooling
             def pressure_func(t):
-                return pressure_ramp(t, "cooling")
+                return pressure_ramp(t, "cooling", pressure_right)
             return pressure_func
 
     def right_temperature():
@@ -273,18 +273,29 @@ mols_CO2_out = []
 mols_carrier_gas_out = []
 mols_CO2_in = []
 cycle_error_log = []
+P_walls_final = []
 
 #jacobian = build_jacobian(column_grid["num_cells"])
 
 # Running simulation! ======================================================================================================
 
-def run_stage(left_values, right_values, column_direction, stage, t_span, initial_conditions):
+def run_stage(left_values, right_values, column_direction, stage, t_span, initial_conditions, solver='BDF'):
     t0 = time.time()
     def ODE_func(t, results_vector,):
         return column.ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=bed_properties, left_values=left_values, right_values=right_values, column_direction=column_direction, stage=stage)
-    output_matrix = solve_ivp(ODE_func, t_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array)
+    output_matrix = solve_ivp(ODE_func, t_span, initial_conditions, method=solver, rtol=rtol, atol=atol_array)
     t1=time.time()
     total_time = t1 - t0
+     
+    # Check the status of the integration
+    if output_matrix.status != 0:
+        print(f"WARNING: Integration failed for {stage} stage!")
+        print(f"Status: {output_matrix.status}")
+        print(f"Message: {output_matrix.message}")
+        
+        if output_matrix.status == -1:
+            print("Integration step failed - returning None")
+            return None, None, None, None, None, None, None, None, None, None, None
         
     P_result = output_matrix.y[0:column_grid["num_cells"]] * bed_properties["P_ref"]
     T_result = output_matrix.y[column_grid["num_cells"]:2*column_grid["num_cells"]] * bed_properties["T_ref"]
@@ -352,6 +363,7 @@ def run_stage(left_values, right_values, column_direction, stage, t_span, initia
     n2_final = n2_result[:,-1]
     F_final = np.zeros(8)
     E_final = np.zeros(3)
+    P_walls_final = P_walls_result[:,-1]
 
     final_conditions = np.concatenate([P_final/bed_properties["P_ref"], T_final/bed_properties["T_ref"], Tw_final/ bed_properties["T_ref"], 
                                        y1_final, y2_final, y3_final, n1_final/bed_properties["n_ref"], n2_final/bed_properties["n_ref"], F_final, E_final])
@@ -361,17 +373,17 @@ def run_stage(left_values, right_values, column_direction, stage, t_span, initia
     #create_plot(time_array, y1_result, "CO2 mole fraction evolution", "Mole fraction")
     #create_plot(time_array, n1_result, "CO2 adsorbed amount evolution", "Adsorbed amount")
 
-    return final_conditions, time_profile, temperature_profile, outlet_CO2_profile,  pressure_profile, adsorbed_CO2_profile, wall_temperature_profile, mols_carrier_gas_out, mols_CO2_out, mols_CO2_in
+    return final_conditions, time_profile, temperature_profile, outlet_CO2_profile, pressure_profile, adsorbed_CO2_profile, wall_temperature_profile, mols_carrier_gas_out, mols_CO2_out, mols_CO2_in, P_walls_final
 
 def run_cycle(n_cycles):
-    global time_profile, temperature_profile, pressure_profile, outlet_CO2_profile, adsorbed_CO2_profile, wall_temperature_profile, carrier_gas_mass, CO2_mass_out, mass_CO2_in
-    current_initial_conditions = initial_conditions  # Start with global initial conditions
-    
+    global time_profile, temperature_profile, pressure_profile, outlet_CO2_profile, adsorbed_CO2_profile, wall_temperature_profile, mols_carrier_gas_out, mols_CO2_out, mols_CO2_in
+    current_initial_conditions = initial_conditions
+    all_cycle_errors = []
+    final_conditions_cooling = None
     for cycle in range(n_cycles):
         print("========================================")
         print(f"Starting cycle {cycle + 1} of {n_cycles}")
 
-        # Clear the global profiles at the start of each cycle
         time_profile.clear()
         temperature_profile.clear()
         pressure_profile.clear()
@@ -382,147 +394,74 @@ def run_cycle(n_cycles):
         mols_CO2_out.clear()
         mols_CO2_in.clear()
 
-        # Stage 1 of cycle - Adsorption ===========================================================================================
-        left_values, right_values, column_direction, stage = define_boundary_conditions("adsorption", bed_properties)
-        t_span = [0, 200]  # Time span for the ODE solver
-        final_conditions_adsorption, _, _, _, _, _, _, _, _, _ = run_stage(left_values, right_values, column_direction, stage, t_span, current_initial_conditions)
-    
-        # Stage 2 of cycle - Blowdown ===============================================================================================
-        # Define boundary conditions for blowdown stage
-        left_values_blowdown, right_values_blowdown, column_direction_blowdown, stage = define_boundary_conditions("blowdown", bed_properties)
-        t_span_blowdown = [0, 50]  # Time span for the ODE solver
-        final_conditions_blowdown, _, _, _, _, _, _, _, _, _ = run_stage(left_values_blowdown, right_values_blowdown, column_direction_blowdown, stage, t_span_blowdown, final_conditions_adsorption)
-    
-        # Stage 3 of cycle - Heating ===============================================================================================
-        # Define boundary conditions for heating stage
-        left_values_heating, right_values_heating, column_direction_heating, stage = define_boundary_conditions("heating", bed_properties)
-        final_conditions_blowdown[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = 400/bed_properties["T_ref"]  # Set wall temperature to 400 K
-        t_span_heating = [0, 1000]  # Time span for the ODE solver
-        final_conditions_heating, _, _, _, _, _, _, _, _, _ = run_stage(left_values_heating, right_values_heating, column_direction_heating, stage, t_span_heating, final_conditions_blowdown)
-    
-        # Stage 4 of cycle - Cooling ===============================================================================================
-        left_values_cooling, right_values_cooling, column_direction_cooling, stage = define_boundary_conditions("cooling", bed_properties)
-        t_span_cooling = [0, 100]  # Time span for the ODE solver
-        final_conditions_cooling, _, _, _, _, _, _, _, _, _ = run_stage(left_values_cooling, right_values_cooling, column_direction_cooling, stage, t_span_cooling, final_conditions_heating)
-        
-        
+        # Adsorption
+        P_initial = initial_conditions[0:column_grid["num_cells"]] * bed_properties["P_ref"]
+        left_values, right_values, column_direction, stage = define_boundary_conditions("adsorption", bed_properties, P_initial[0], P_initial[-1])
+        t_span = [0, 200]
+        final_conditions_adsorption, _, _, _, _, _, _, _, _, _, P_walls_final = run_stage(left_values, right_values, column_direction, stage, t_span, current_initial_conditions)
+
+        # Blowdown
+        left_values_blowdown, right_values_blowdown, column_direction_blowdown, stage = define_boundary_conditions("blowdown", bed_properties, P_walls_final[0], P_walls_final[-1])
+        t_span_blowdown = [0, 50]
+        final_conditions_blowdown, _, _, _, _, _, _, _, _, _, P_walls_final = run_stage(left_values_blowdown, right_values_blowdown, column_direction_blowdown, stage, t_span_blowdown, final_conditions_adsorption)
+
+        # Heating
+        left_values_heating, right_values_heating, column_direction_heating, stage = define_boundary_conditions("heating", bed_properties, P_walls_final[0], P_walls_final[-1])
+        final_conditions_blowdown[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = 400/bed_properties["T_ref"]
+        t_span_heating = [0, 1000]
+        final_conditions_heating, _, _, _, _, _, _, _, _, _, P_walls_final = run_stage(left_values_heating, right_values_heating, column_direction_heating, stage, t_span_heating, final_conditions_blowdown)
+
+        # Cooling
+        left_values_cooling, right_values_cooling, column_direction_cooling, stage = define_boundary_conditions("cooling", bed_properties, P_walls_final[0], P_walls_final[-1])
+        t_span_cooling = [0, 500]
+        final_conditions_cooling, _, _, _, _, _, _, _, _, _, P_walls_final = run_stage(left_values_cooling, right_values_cooling, column_direction_cooling, stage, t_span_cooling, final_conditions_heating, solver="LSODA")
+
         cycle_error_value = cycle_error(current_initial_conditions, final_conditions_cooling)
-        cycle_error_log.append(cycle_error_value)
+        all_cycle_errors.append(cycle_error_value)
         print(f"Completed cycle {cycle + 1} of {n_cycles}")
         print(".........................................")
         print("Cycle error at end of cycle:", cycle_error_value)
-        # Update initial conditions for next cycle
         current_initial_conditions = final_conditions_cooling
 
-        # Calculate KPIs
+        # KPIs
         cycle_purity = np.sum(mols_CO2_out[2]) / (np.sum(mols_CO2_out[2]) + np.sum(mols_carrier_gas_out[2]))
         print(f"Cycle {cycle + 1} Purity: {cycle_purity:.6f}")
-        CO2_prod_rate = np.sum(mols_CO2_out[1:2]) / time_profile[-1] * 3600 / 1000 # kg / hr
+        CO2_prod_rate = np.sum(mols_CO2_out[1:2]) / time_profile[-1] * 3600 / 1000
         print(f"Cycle {cycle + 1} CO2 Production Rate: {CO2_prod_rate:.6f}")
         recovery_rate = np.sum(mols_CO2_out[2]) / np.sum(mols_CO2_in[:])
         print(f"Cycle {cycle + 1} Recovery Rate: {recovery_rate:.6f}")
-        productivity = mols_CO2_out[2] / bed_properties["sorbent_volume"] / (time_profile[-1] / 3600)  # mol/kg/hr
-        bed_size_factor = bed_properties["sorbent_mass"] / mols_CO2_out[2] * bed_properties["MW_1"] * (time_profile[-1]) * 3600 * 24  # kg/mol
-        cycle_error_value = cycle_error(current_initial_conditions, final_conditions_cooling)
+        productivity = mols_CO2_out[2] / bed_properties["sorbent_volume"] / (time_profile[-1] / 3600)
+        bed_size_factor = bed_properties["sorbent_mass"] / mols_CO2_out[2] * bed_properties["MW_1"] * (time_profile[-1]) * 3600 * 24
+
+        # Convergence check
+        if len(all_cycle_errors) >= 5:
+            if all(error < 1e-9 for error in all_cycle_errors[-5:]):
+                print(f"Converged after {cycle + 1} cycles!")
+                break
+    else:
+        print("Maximum cycles reached without convergence")
+
+    # Return profiles and errors for plotting
+    return (temperature_profile, outlet_CO2_profile, time_profile, pressure_profile, adsorbed_CO2_profile, wall_temperature_profile, all_cycle_errors)
 
 
     return final_conditions_cooling, temperature_profile, outlet_CO2_profile, time_profile, pressure_profile, adsorbed_CO2_profile, wall_temperature_profile, cycle_purity, CO2_prod_rate, recovery_rate, cycle_error_log
 
 def main():
-    # Run multiple cycles to reach steady state
-
     bed_properties, column_grid, initial_conditions, rtol, atol_array = create_fixed_properties()
-
-    # Check convergence after at least 5 cycles
-    all_cycle_errors = []  # Track errors across all cycles
-    current_initial_conditions = initial_conditions
-
-    for cycle_num in range(1, 11):  # Run cycles 1 through 3
-        print("========================================")
-        print(f"Starting cycle {cycle_num} of 10 (maximum)")
-        
-        # Clear the global profiles at the start of each cycle
-        time_profile.clear()
-        temperature_profile.clear()
-        pressure_profile.clear()
-        outlet_CO2_profile.clear()
-        adsorbed_CO2_profile.clear()
-        wall_temperature_profile.clear()
-        mols_carrier_gas_out.clear()
-        mols_CO2_out.clear()
-        mols_CO2_in.clear()
-
-        # Stage 1 of cycle - Adsorption
-        left_values, right_values, column_direction, stage = define_boundary_conditions("adsorption", bed_properties)
-        t_span = [0, 200]
-        final_conditions_adsorption, _, _, _, _, _, _, _, _, _ = run_stage(left_values, right_values, column_direction, stage, t_span, current_initial_conditions)
-    
-        # Stage 2 of cycle - Blowdown
-        left_values_blowdown, right_values_blowdown, column_direction_blowdown, stage = define_boundary_conditions("blowdown", bed_properties)
-        t_span_blowdown = [0, 50]
-        final_conditions_blowdown, _, _, _, _, _, _, _, _, _ = run_stage(left_values_blowdown, right_values_blowdown, column_direction_blowdown, stage, t_span_blowdown, final_conditions_adsorption)
-    
-        # Stage 3 of cycle - Heating
-        left_values_heating, right_values_heating, column_direction_heating, stage = define_boundary_conditions("heating", bed_properties)
-        final_conditions_blowdown[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = 400/bed_properties["T_ref"]
-        t_span_heating = [0, 1000]
-        final_conditions_heating, _, _, _, _, _, _, _, _, _ = run_stage(left_values_heating, right_values_heating, column_direction_heating, stage, t_span_heating, final_conditions_blowdown)
-    
-        # Stage 4 of cycle - Cooling
-        left_values_cooling, right_values_cooling, column_direction_cooling, stage = define_boundary_conditions("cooling", bed_properties)
-        t_span_cooling = [0, 100]
-        final_conditions_cooling, _, _, _, _, _, _, _, _, _ = run_stage(left_values_cooling, right_values_cooling, column_direction_cooling, stage, t_span_cooling, final_conditions_heating)
-        
-        cycle_error_value = cycle_error(current_initial_conditions, final_conditions_cooling)
-        all_cycle_errors.append(cycle_error_value)
-        
-        print(f"Completed cycle {cycle_num} of 10")
-        print(".........................................")
-        print("Cycle error at end of cycle:", cycle_error_value)
-        
-        # Update initial conditions for next cycle
-        current_initial_conditions = final_conditions_cooling
-
-        # Calculate KPIs
-        cycle_purity = np.sum(mols_CO2_out[2]) / (np.sum(mols_CO2_out[2]) + np.sum(mols_carrier_gas_out[2]))
-        print(f"Cycle {cycle_num} Purity: {cycle_purity:.6f}")
-        CO2_prod_rate = np.sum(mols_CO2_out[1:2]) / time_profile[-1] * 3600 / 1000
-        print(f"Cycle {cycle_num} CO2 Production Rate: {CO2_prod_rate:.6f}")
-        recovery_rate = np.sum(mols_CO2_out[2]) / np.sum(mols_CO2_in[:])
-        print(f"Cycle {cycle_num} Recovery Rate: {recovery_rate:.6f}")
-        
-        # Check convergence after at least 5 cycles
-        if len(all_cycle_errors) >= 5:
-            if all(error < 1e-9 for error in all_cycle_errors[-5:]):
-                print(f"Converged after {cycle_num} cycles!")
-                break
-    else:
-        print("Maximum cycles reached without convergence")
-
-    # Use the final cycle's profiles for plotting
-    final_temperature_profile = temperature_profile
-    final_outlet_CO2_profile = outlet_CO2_profile
-    final_time_profile = time_profile
-    final_pressure_profile = pressure_profile
-    final_adsorbed_CO2_profile = adsorbed_CO2_profile
-    final_wall_temperature_profile = wall_temperature_profile
+    n_cycles = 10
+    temperature_profile, outlet_CO2_profile, time_profile, pressure_profile, adsorbed_CO2_profile, wall_temperature_profile, all_cycle_errors = run_cycle(n_cycles)
 
     plots = [
-    (final_time_profile, final_temperature_profile,
-     "Temperature at column midpoint (Final Cycle)", "Temperature (K)"),
-    (final_time_profile, final_pressure_profile,
-     "Pressure at column inlet (Final Cycle)", "Pressure (Pa)"),
-    (final_time_profile, final_outlet_CO2_profile,
-     "Outlet CO2 concentration (Final Cycle)", "Mole Fraction"),
-    (final_time_profile, final_adsorbed_CO2_profile,
-     "Adsorbed CO2 at column midpoint (Final Cycle)", "Concentration (mol/m³)"),
-    (final_time_profile, final_wall_temperature_profile,
-     "Wall Temperature at column midpoint (Final Cycle)", "Temperature (K)"),
+        (time_profile, temperature_profile, "Temperature at column midpoint (Final Cycle)", "Temperature (K)"),
+        (time_profile, pressure_profile, "Pressure at column inlet (Final Cycle)", "Pressure (Pa)"),
+        (time_profile, outlet_CO2_profile, "Outlet CO2 concentration (Final Cycle)", "Mole Fraction"),
+        (time_profile, adsorbed_CO2_profile, "Adsorbed CO2 at column midpoint (Final Cycle)", "Concentration (mol/m³)"),
+        (time_profile, wall_temperature_profile, "Wall Temperature at column midpoint (Final Cycle)", "Temperature (K)")
     ]
 
     create_multi_plot(plots, ncols=3)
-
-    create_quick_plot(np.arange(1,len(all_cycle_errors)+1), np.log10(all_cycle_errors), "Cycle error", "Cycle error")
+    create_quick_plot(np.arange(1, len(all_cycle_errors)+1), np.log10(all_cycle_errors), "Cycle error", "Cycle error")
 
 if __name__ == "__main__":
     main()
