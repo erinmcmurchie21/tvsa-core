@@ -80,7 +80,7 @@ def flip_column(results_vector, num_cells, bed_properties):
 
     return P, T, Tw, y1, y2, y3, n1, n2, F, E
     
-def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, left_values):
+def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, left_values, t=0):
 
     """
     Apply inlet boundary conditions at z=0.
@@ -110,9 +110,9 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
     if left_values["left_type"] == "mass_flow":
         # Calculate transport properties at inlet conditions
         rho_gas_left = func.calculate_gas_density(P[0], T[0])  # [mol/m³]
-        mu = func.calculate_gas_viscosity()                     # [Pa·s]
-        D_l = func.calculate_axial_dispersion_coefficient(bed_properties, left_values)  # [m²/s]
-        v_left = left_values["velocity"]                      # [m/s]
+        mu = func.calculate_gas_viscosity()    
+        v_left = left_values["velocity"]                 # [m/s]
+        D_l = func.calculate_axial_dispersion_coefficient(bed_properties, v_left)  # [m²/s]                     
         Cp_g = func.calculate_gas_heat_capacity()               # [J/mol·K]
         thermal_diffusivity = func.calculate_gas_thermal_conductivity() / (Cp_g * rho_gas_left)  # [m²/s]
 
@@ -174,6 +174,63 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
 
         # Wall temperature boundary conditions
         Tw_left = Tw[0]
+        dTwdz_left = 0
+
+    elif left_values["left_type"] == "pressure":
+        # Fixed outlet pressure - check if it's a function or direct value
+        P_left = left_values["left_pressure"](t)
+
+        # Extrapolate composition variables using quadratic interpolation
+        
+        y1_left = func.quadratic_extrapolation_derivative(
+            column_grid["xCentres"][column_grid["nGhost"]], y1[0], 
+            column_grid["xCentres"][column_grid["nGhost"]+1], y1[1],
+            column_grid["xWalls"][column_grid["nGhost"]])
+        
+        y2_left = func.quadratic_extrapolation_derivative(
+            column_grid["xCentres"][column_grid["nGhost"]], y2[0], 
+            column_grid["xCentres"][column_grid["nGhost"]+1], y2[1],
+            column_grid["xWalls"][column_grid["nGhost"]])
+        
+        y3_left = func.quadratic_extrapolation_derivative(
+            column_grid["xCentres"][column_grid["nGhost"]], y3[0], 
+            column_grid["xCentres"][column_grid["nGhost"]+1], y3[1],
+            column_grid["xWalls"][column_grid["nGhost"]])
+
+        
+        # Zero gradient for temperature
+        T_left = func.quadratic_extrapolation_derivative(
+            column_grid["xCentres"][column_grid["nGhost"]], T[0], 
+            column_grid["xCentres"][column_grid["nGhost"]+1], T[1],
+            column_grid["xWalls"][column_grid["nGhost"]])
+
+        #T_right = T[-1]
+        
+        Tw_left = Tw[-1]
+        
+        # Calculate outlet velocity from Ergun equation
+        mu = func.calculate_gas_viscosity()
+        rho_gas_right = P_left / bed_properties["R"] / T_left  # [mol/m³]
+        
+        # Convert to mass density [kg/m³]
+        avg_density_left = rho_gas_right / 1000 * (
+            bed_properties["MW_1"] * y1_left + 
+            bed_properties["MW_2"] * y2_left + 
+            bed_properties["MW_3"] * y3_left + 
+            bed_properties["MW_4"] * (1 - y1_left - y2_left - y3_left))
+
+        # Calculate pressure gradient
+        dPdz_left = (P_left - P[-1]) / (
+            column_grid["xWalls"][-1] - column_grid["xCentres"][-1])
+        
+        # Solve Ergun equation: av² + bv + c = 0
+        a = 1.75 * (1 - bed_properties["bed_voidage"]) * avg_density_left / (
+            bed_properties["bed_voidage"]**3 * bed_properties["particle_diameter"])
+        b = 150 * mu * (1 - bed_properties["bed_voidage"])**2 / (
+            bed_properties["bed_voidage"]**3 * bed_properties["particle_diameter"]**2)
+        c = np.abs(dPdz_left)
+        
+        v_left = -np.sign(dPdz_left) * ((-b + np.sqrt(b**2 + 4*a*c)) / (2*a))
         dTwdz_left = 0
 
     elif left_values["left_type"] == "closed":
@@ -513,7 +570,7 @@ def calculate_internal_wall_values(P_all, T_all, Tw_all, y1_all, y2_all, y3_all,
     Cp_g = func.calculate_gas_heat_capacity()               # [J/mol·K]
     thermal_diffusivity = func.calculate_gas_thermal_conductivity() / (Cp_g * rho_gas_inlet)
     Pe_h = bed_properties["bed_voidage"] / thermal_diffusivity
-    v_left = left_values["velocity"] 
+    v_left = v_left
     dTdz_walls[0] = -(v_left * Pe_h) * (left_values["left_temperature"] - T_left)  # set inlet temperature gradient
 
     #calculate dP/dz at internal cell walls by linear interpolation
@@ -549,6 +606,7 @@ def calculate_internal_wall_values(P_all, T_all, Tw_all, y1_all, y2_all, y3_all,
     dominant = b**2+4*a*c
         
     if np.any(dominant < 0):
+        print("Final P_all values before error:", P_all)
         raise ValueError("Negative value under square root in velocity calculation. Check your inputs and boundary conditions.")
     v_walls = np.array((-b + np.sqrt(dominant)) / (2*a)) # should have N + 1 values 
     v_walls = np.multiply(-np.sign(dPdz_walls),v_walls)  # make sure velocity is in the correct direction
@@ -606,12 +664,12 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     # Apply inlet boundary conditions
     (P_left, T_left, Tw_left, y1_left, y2_left, y3_left, 
      v_left, dPdz_left, dTwdz_left) = left_boundary_conditions(
-        P, T, Tw, y1, y2, y3, column_grid, bed_properties, left_values)
+        P, T, Tw, y1, y2, y3, column_grid, bed_properties, left_values, t=t)
 
     # Apply outlet boundary conditions
     (P_right, T_right, Tw_right, y1_right, y2_right, y3_right, 
      v_right, dPdz_right, dTwdz_right) = right_boundary_conditions(
-        P, T, Tw, y1, y2, y3, column_grid, bed_properties, right_values, t)
+        P, T, Tw, y1, y2, y3, column_grid, bed_properties, right_values, t=t)
     
     # Calculate ghost cell values
     P_all, T_all, Tw_all, y1_all, y2_all, y3_all = ghost_cell_calculations(
@@ -672,7 +730,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     h_bed, h_wall = bed_properties["h_bed"], bed_properties["h_wall"]  # Heat transfer coefficients (W/m²*K)
     
     # Axial dispersion coefficient
-    D_l = func.calculate_axial_dispersion_coefficient(bed_properties, left_values)
+    D_l = func.calculate_axial_dispersion_coefficient(bed_properties, v_left)
 
     # =========================================================================
     # ENERGY BALANCE - COLUMN TEMPERATURE

@@ -305,9 +305,9 @@ def calculate_gas_thermal_conductivity():
 def calculate_wall_thermal_conductivity():
     return 205  # W/(m·K)
 
-def calculate_axial_dispersion_coefficient(bed_props, inlet_vals):
+def calculate_axial_dispersion_coefficient(bed_props, v_left):
     D_m = bed_props["molecular_diffusivity"]  # m²/s (molecular diffusion)
-    v_0 = inlet_vals["velocity"]
+    v_0 = v_left
     d_p = bed_props["particle_diameter"]
     return 0.7 * D_m + (0.5 * v_0 * d_p)
 
