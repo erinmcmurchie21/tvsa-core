@@ -61,6 +61,7 @@ def create_fixed_properties():
     "t_tot": 100,
 }
     column_grid = create_non_uniform_grid(bed_properties)
+    
 
     # Initial values for the column
     P = np.ones(column_grid["num_cells"]) * 101325  # Example pressure vector in Pa
@@ -109,7 +110,7 @@ def pressure_ramp(t, stage, pressure_previous_stage):
         initial_pressure = pressure_previous_stage
         final_pressure = 101325
         tau = 1 - 1/np.e
-        pressure = final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
+        pressure = final_pressure #+ (initial_pressure - final_pressure) * np.exp(-t / tau)
 
     elif stage == "blowdown":
         initial_pressure = pressure_previous_stage  # Pa
@@ -125,22 +126,16 @@ def pressure_ramp(t, stage, pressure_previous_stage):
 
     elif stage == "pressurisation":
         initial_pressure = pressure_previous_stage  # Pa
-        final_pressure = 101325     # Pa
-        tau = 1 - 1/np.e
-        pressure = final_pressure + (final_pressure - initial_pressure) * np.exp(-t / tau)
+        final_pressure = 103000   # Pa
+        tau = 0.2 #1 - 1/np.e
+        pressure = final_pressure - (final_pressure - initial_pressure) * np.exp(-t / tau)
     
     elif stage == "cooling":
         initial_pressure = pressure_previous_stage  # Pa
-        final_pressure = 40500 # 101325     # Pa
+        final_pressure = 101325 # 101325     # Pa
         # Use much longer ramp duration for cooling to avoid steep gradients
-        tau = 10  # Example longer time constant
-        pressure = final_pressure #+ (final_pressure-initial_pressure) * np.exp(-t / tau)
-        cooling_ramp_duration = 50  # Duration of the cooling ramp in seconds
-        """if t <= cooling_ramp_duration:
-                # Linear ramp: P(t) = P_initial + (P_final - P_initial) * (t / cooling_ramp_duration)
-                pressure = initial_pressure + (final_pressure - initial_pressure) * (t / cooling_ramp_duration)
-        else:
-            pressure = final_pressure"""
+        tau = 0.2 # 1 - 1/np.e # Example longer time constant
+        pressure = final_pressure #- (final_pressure - initial_pressure) * np.exp(-t / tau)
 
     return pressure
 
@@ -164,7 +159,7 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
         right_type = "closed"
         column_direction = "forwards"
     elif stage == "cooling":
-        left_type = "closed"
+        left_type = "mass_flow"
         right_type = "pressure"
         column_direction = "forwards"
 
@@ -192,7 +187,7 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
         if stage == "adsorption":
             # Return a constant pressure function
             def pressure_func(t):
-                return pressure_ramp(t, "adsorption", pressure_left)
+                return None
             return pressure_func
         elif stage == "blowdown":
             # Return the pressure ramp function for blowdown
@@ -212,7 +207,7 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
         elif stage == "cooling":
             # Return the pressure ramp function for cooling
             def pressure_func(t):
-                return pressure_ramp(t, "cooling", pressure_left)
+                return None
             return pressure_func
     
     def left_temperature():
@@ -348,7 +343,7 @@ def run_stage(left_values, right_values, column_direction, stage, t_span, initia
     (P_walls_result, T_walls_result, Tw_walls_result,
     y1_walls_result, y2_walls_result, y3_walls_result,
     v_walls_result) = column.final_wall_values(column_grid, bed_properties, left_values, right_values, output_matrix)
-
+    
     # Adjust time array to account for previous stages
     if len(time_profile) == 0:
         time_offset = 0
@@ -362,13 +357,13 @@ def run_stage(left_values, right_values, column_direction, stage, t_span, initia
 
     # Extend the profiles instead of appending arrays
     time_profile.extend(adjusted_time_array)
-    temperature_profile.extend(T_result[9])
+    temperature_profile.extend(T_result[np.round(column_grid["num_cells"]//2)])
     outlet_CO2_profile.extend(y1_walls_result[-1])
     pressure_profile_inlet.extend(P_walls_result[0])
     pressure_profile_outlet.extend(P_walls_result[-1])
-    adsorbed_CO2_profile.extend(n1_result[9])
-    wall_temperature_profile.extend(Tw_walls_result[9])
-
+    adsorbed_CO2_profile.extend(n1_result[np.round(column_grid["num_cells"]//2)])
+    wall_temperature_profile.extend(Tw_walls_result[np.round(column_grid["num_cells"]//2)])
+    
     # Calculating KPIs - use different variable names to avoid conflict
     mols_CO2_out_st, mols_carrier_gas_out_st, mols_CO2_in_st = product_mass(F_result, time_array, bed_properties)
     
@@ -441,29 +436,30 @@ def run_cycle(n_cycles):
         final_conditions_blowdown[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = 400/bed_properties["T_ref"]
         t_span_heating = [0, 1000]
         final_conditions_heating, _, _, _, _, _, _, _, _, _, _, P_walls_final = run_stage(left_values_heating, right_values_heating, column_direction_heating, stage, t_span_heating, final_conditions_blowdown)
+        
 
-        # After heating stage
-        """Quick plot of a variable over time
-        plt.figure(figsize=(6, 4))
-        plt.plot(time_profile, pressure_profile_inlet, label='Inlet', linestyle=None, marker='x', markersize=3)
-        plt.plot(time_profile, pressure_profile_outlet, label='Outlet', linestyle=None, marker='o', markersize=3)
-        plt.title("Pressure profile after heating stage", fontsize=16, fontweight='bold')
-        plt.xlabel('Time (s)', fontsize=12)
-        plt.ylabel('Pressure (Pa)', fontsize=12)
-        plt.legend(fontsize=11)
-        plt.grid(True, alpha=0.3)
-        plt.show()"""
         # Pressurisation
         left_values_pressurisation, right_values_pressurisation, column_direction_pressurisation, stage = define_boundary_conditions("pressurisation", bed_properties, P_walls_final[0], P_walls_final[-1])
-        t_span_pressurisation = [0, 40]
-        final_conditions_pressurisation, _, _, _, _, _, _, _, _, _, _, P_walls_final = run_stage(left_values_pressurisation, right_values_pressurisation, column_direction_pressurisation, stage, t_span_pressurisation, final_conditions_heating)
-
+        t_span_pressurisation = [0, 30]
+        final_conditions_pressurisation, _, _, _, _, _, _, _, _, _, _, P_walls_final_pressurisation = run_stage(left_values_pressurisation, right_values_pressurisation, column_direction_pressurisation, stage, t_span_pressurisation, final_conditions_heating)
+        print(P_walls_final_pressurisation)
+        
         # Cooling
-        left_values_cooling, right_values_cooling, column_direction_cooling, stage = define_boundary_conditions("cooling", bed_properties, P_walls_final[0], P_walls_final[-1])
+        left_values_cooling, right_values_cooling, column_direction_cooling, stage = define_boundary_conditions("cooling", bed_properties, P_walls_final_pressurisation[0], P_walls_final_pressurisation[-1])
         print("Inlet pressure", left_values_cooling["left_pressure"](0))
         print("Outlet pressure", right_values_cooling["right_pressure_func"](0))
         t_span_cooling = [0, 500]
         final_conditions_cooling, _, _, _, _, _, _, _, _, _, _, P_walls_final = run_stage(left_values_cooling, right_values_cooling, column_direction_cooling, stage, t_span_cooling, final_conditions_pressurisation, solver="BDF")
+        """
+                plt.figure(figsize=(6, 4))
+                plt.plot(time_profile[-500:], pressure_profile_inlet[-500:], label='Inlet', linestyle=None, marker='x', markersize=3)
+                plt.plot(time_profile[-500:], pressure_profile_outlet[-500:], label='Outlet', linestyle=None, marker='o', markersize=3)
+                plt.title("Pressure profile after heating stage", fontsize=16, fontweight='bold')
+                plt.xlabel('Time (s)', fontsize=12)
+                plt.ylabel('Pressure (Pa)', fontsize=12)
+                plt.legend(fontsize=11)
+                plt.grid(True, alpha=0.3)
+                plt.show()"""
 
         cycle_error_value = cycle_error(current_initial_conditions, final_conditions_cooling)
         all_cycle_errors.append(cycle_error_value)

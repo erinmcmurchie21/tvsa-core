@@ -206,22 +206,22 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
 
         #T_right = T[-1]
         
-        Tw_left = Tw[-1]
+        Tw_left = Tw[0]
         
         # Calculate outlet velocity from Ergun equation
         mu = func.calculate_gas_viscosity()
-        rho_gas_right = P_left / bed_properties["R"] / T_left  # [mol/m³]
+        rho_gas_left = P_left / bed_properties["R"] / T_left  # [mol/m³]
         
         # Convert to mass density [kg/m³]
-        avg_density_left = rho_gas_right / 1000 * (
+        avg_density_left = rho_gas_left / 1000 * (
             bed_properties["MW_1"] * y1_left + 
             bed_properties["MW_2"] * y2_left + 
             bed_properties["MW_3"] * y3_left + 
             bed_properties["MW_4"] * (1 - y1_left - y2_left - y3_left))
 
         # Calculate pressure gradient
-        dPdz_left = (P_left - P[-1]) / (
-            column_grid["xWalls"][-1] - column_grid["xCentres"][-1])
+        dPdz_left = (P_left - P[0]) / (
+            column_grid["xWalls"][column_grid["nGhost"]] - column_grid["xCentres"][column_grid["nGhost"]])
         
         # Solve Ergun equation: av² + bv + c = 0
         a = 1.75 * (1 - bed_properties["bed_voidage"]) * avg_density_left / (
@@ -341,7 +341,7 @@ def right_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties,
         
         # Calculate pressure gradient
         dPdz_right = (P_right - P[-1]) / (
-            column_grid["xWalls"][-1] - column_grid["xCentres"][-1])
+            column_grid["xWalls"][-(column_grid["nGhost"]+1)] - column_grid["xCentres"][-(column_grid["nGhost"]+1)])
         
         # Solve Ergun equation: av² + bv + c = 0
         a = 1.75 * (1 - bed_properties["bed_voidage"]) * avg_density_right / (
@@ -355,7 +355,10 @@ def right_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties,
 
     elif right_values["right_type"] == "closed":
         # Closed outlet: zero gradients
-        P_right = P[-(column_grid["nGhost"]+1)]
+        P_right = func.quadratic_extrapolation_derivative(
+            column_grid["xCentres"][-(column_grid["nGhost"]+1)], P[-1], 
+            column_grid["xCentres"][-(column_grid["nGhost"]+2)], P[-2], 
+            column_grid["xWalls"][-(column_grid["nGhost"]+1)])
         
         y1_right = func.quadratic_extrapolation_derivative(
             column_grid["xCentres"][-(column_grid["nGhost"]+1)], y1[-1], 
@@ -391,9 +394,9 @@ def right_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties,
     return P_right, T_right, Tw_right, y1_right, y2_right, y3_right, v_right, dPdz_right, dTwdz_right
 
 def ghost_cell_calculations(P, T, Tw, y1, y2, y3, 
-                            P_inlet, P_right, T_inlet, T_right, Tw_inlet, Tw_right, 
-                            y1_inlet, y1_right, y2_inlet, y2_right, 
-                            y3_inlet, y3_right, column_grid):
+                            P_left, P_right, T_left, T_right, Tw_left, Tw_right, 
+                            y1_left, y1_right, y2_left, y2_right, 
+                            y3_left, y3_right, column_grid):
     """
     Calculate ghost cell values using boundary conditions.
     
@@ -416,19 +419,19 @@ def ghost_cell_calculations(P, T, Tw, y1, y2, y3,
     """
     
     # Pressure ghost cells using linear extrapolation
-    P_ghost_start = P[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
-                    (P[0] - P_inlet) / (column_grid["xCentres"][column_grid["nGhost"]] - 
+    P_ghost_left = P[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
+                    (P[0] - P_left) / (column_grid["xCentres"][column_grid["nGhost"]] - 
                                        column_grid["xWalls"][column_grid["nGhost"]])
     
-    P_ghost_end = P[-1] - (column_grid["xCentres"][-1] - column_grid["xCentres"][-column_grid["nGhost"]-1]) * \
+    P_ghost_right = P[-1] - (column_grid["xCentres"][-1] - column_grid["xCentres"][-column_grid["nGhost"]-1]) * \
                   (P[-1] - P_right) / (column_grid["xCentres"][-(column_grid["nGhost"]+1)] - 
                                        column_grid["xWalls"][-(column_grid["nGhost"]+1)])
-    
-    P_all = np.concatenate([np.array([P_ghost_start]), P, np.array([P_ghost_end])])
+
+    P_all = np.concatenate([np.array([P_ghost_left]), P, np.array([P_ghost_right])])
 
     # Composition ghost cells using quadratic extrapolation
     y1_ghost_start = y1[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
-                    (y1[0] - y1_inlet) / (column_grid["xCentres"][column_grid["nGhost"]] - 
+                    (y1[0] - y1_left) / (column_grid["xCentres"][column_grid["nGhost"]] - 
                                        column_grid["xWalls"][column_grid["nGhost"]])
     
     y1_ghost_end = y1[-1] - (column_grid["xCentres"][-1] - column_grid["xCentres"][-column_grid["nGhost"]-1]) * \
@@ -463,7 +466,7 @@ def ghost_cell_calculations(P, T, Tw, y1, y2, y3,
         column_grid["xCentres"][-1])"""
 
     y2_ghost_start = y2[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
-                    (y2[0] - y2_inlet) / (column_grid["xCentres"][column_grid["nGhost"]] - 
+                    (y2[0] - y2_left) / (column_grid["xCentres"][column_grid["nGhost"]] - 
                                        column_grid["xWalls"][column_grid["nGhost"]])
     
     y2_ghost_end = y2[-1] - (column_grid["xCentres"][-1] - column_grid["xCentres"][-column_grid["nGhost"]-1]) * \
@@ -485,7 +488,7 @@ def ghost_cell_calculations(P, T, Tw, y1, y2, y3,
         column_grid["xCentres"][-1])"""
     
     y3_ghost_start = y3[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
-                    (y3[0] - y1_inlet) / (column_grid["xCentres"][column_grid["nGhost"]] - 
+                    (y3[0] - y3_left) / (column_grid["xCentres"][column_grid["nGhost"]] - 
                                        column_grid["xWalls"][column_grid["nGhost"]])
     
     y3_ghost_end = y3[-1] - (column_grid["xCentres"][-1] - column_grid["xCentres"][-column_grid["nGhost"]-1]) * \
@@ -508,7 +511,7 @@ def ghost_cell_calculations(P, T, Tw, y1, y2, y3,
         column_grid["xCentres"][-1])"""
     
     T_ghost_start = T[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
-                    (T[0] - y1_inlet) / (column_grid["xCentres"][column_grid["nGhost"]] - 
+                    (T[0] - T_left) / (column_grid["xCentres"][column_grid["nGhost"]] - 
                                        column_grid["xWalls"][column_grid["nGhost"]])
     
     T_ghost_end = T[-1] - (column_grid["xCentres"][-1] - column_grid["xCentres"][-column_grid["nGhost"]-1]) * \
@@ -519,7 +522,7 @@ def ghost_cell_calculations(P, T, Tw, y1, y2, y3,
 
     # Wall temperature ghost cells
     Tw_ghost_start = Tw[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
-                     (Tw[0] - Tw_inlet) / (column_grid["xCentres"][column_grid["nGhost"]] - 
+                     (Tw[0] - Tw_left) / (column_grid["xCentres"][column_grid["nGhost"]] - 
                                           column_grid["xWalls"][column_grid["nGhost"]])
     
     Tw_ghost_end = Tw[-1] - (column_grid["xCentres"][-1] - column_grid["xCentres"][-column_grid["nGhost"]-1]) * \
@@ -606,7 +609,7 @@ def calculate_internal_wall_values(P_all, T_all, Tw_all, y1_all, y2_all, y3_all,
     dominant = b**2+4*a*c
         
     if np.any(dominant < 0):
-        print("Final P_all values before error:", P_all)
+        print("Final P_walls values before error:", P_walls)
         raise ValueError("Negative value under square root in velocity calculation. Check your inputs and boundary conditions.")
     v_walls = np.array((-b + np.sqrt(dominant)) / (2*a)) # should have N + 1 values 
     v_walls = np.multiply(-np.sign(dPdz_walls),v_walls)  # make sure velocity is in the correct direction
@@ -998,7 +1001,7 @@ def final_wall_values(column_grid, bed_properties, left_values, right_values, ou
         # Boundary conditions
         (P_left, T_left, Tw_left, y1_left, y2_left, y3_left, 
          v_left, dPdz_left, dTwdz_left) = left_boundary_conditions(
-             P, T, Tw, y1, y2, y3, column_grid, bed_properties, left_values)
+             P, T, Tw, y1, y2, y3, column_grid, bed_properties, left_values, t)
 
         (P_right, T_right, Tw_right, y1_right, y2_right, y3_right, 
          v_right, dPdz_right, dTwdz_right) = right_boundary_conditions(

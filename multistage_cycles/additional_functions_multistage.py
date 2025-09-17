@@ -15,7 +15,7 @@ def create_non_uniform_grid(bed_properties):
     Returns:
         column_grid (dict): grid properties including xCentres, xWalls, deltaZ, etc.
     """
-    nx = 30          # Number of physical cells
+    nx = 31          # Number of physical cells
     nGhost = 1       # Number of ghost cells on each end
     xmin, xmax = 0, bed_properties["bed_length"]  # Column length from bed properties
 
