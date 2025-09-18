@@ -437,34 +437,10 @@ def ghost_cell_calculations(P, T, Tw, y1, y2, y3,
     y1_ghost_end = y1[-1] - (column_grid["xCentres"][-1] - column_grid["xCentres"][-column_grid["nGhost"]-1]) * \
                   (y1[-1] - y1_right) / (column_grid["xCentres"][-(column_grid["nGhost"]+1)] - 
                                        column_grid["xWalls"][-(column_grid["nGhost"]+1)])
-
-    """y1_ghost_start = func.quadratic_extrapolation(
-        column_grid["xWalls"][column_grid["nGhost"]], y1_inlet, 
-        column_grid["xCentres"][column_grid["nGhost"]], y1[0], 
-        column_grid["xCentres"][column_grid["nGhost"]+1], y1[1], 
-        column_grid["xCentres"][0])
-    
-    y1_ghost_end = func.quadratic_extrapolation(
-        column_grid["xWalls"][-(column_grid["nGhost"]+1)], y1_right, 
-        column_grid["xCentres"][-(column_grid["nGhost"]+1)], y1[-1], 
-        column_grid["xCentres"][-(column_grid["nGhost"]+2)], y1[-2], 
-        column_grid["xCentres"][-1])"""
     
     y1_all = np.concatenate((np.array([y1_ghost_start]), y1, np.array([y1_ghost_end])))
 
     # Similar calculations for y2 and y3
-    """y2_ghost_start = func.quadratic_extrapolation(
-        column_grid["xWalls"][column_grid["nGhost"]], y2_inlet, 
-        column_grid["xCentres"][column_grid["nGhost"]], y2[0], 
-        column_grid["xCentres"][column_grid["nGhost"]+1], y2[1], 
-        column_grid["xCentres"][0])
-    
-    y2_ghost_end = func.quadratic_extrapolation(
-        column_grid["xWalls"][-(column_grid["nGhost"]+1)], y2_right, 
-        column_grid["xCentres"][-(column_grid["nGhost"]+1)], y2[-1], 
-        column_grid["xCentres"][-(column_grid["nGhost"]+2)], y2[-2], 
-        column_grid["xCentres"][-1])"""
-
     y2_ghost_start = y2[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
                     (y2[0] - y2_left) / (column_grid["xCentres"][column_grid["nGhost"]] - 
                                        column_grid["xWalls"][column_grid["nGhost"]])
@@ -474,18 +450,6 @@ def ghost_cell_calculations(P, T, Tw, y1, y2, y3,
                                        column_grid["xWalls"][-(column_grid["nGhost"]+1)])
     
     y2_all = np.concatenate((np.array([y2_ghost_start]), y2, np.array([y2_ghost_end])))
-
-    """y3_ghost_start = func.quadratic_extrapolation(
-        column_grid["xWalls"][column_grid["nGhost"]], y3_inlet, 
-        column_grid["xCentres"][column_grid["nGhost"]], y3[0], 
-        column_grid["xCentres"][column_grid["nGhost"]+1], y3[1], 
-        column_grid["xCentres"][0])
-    
-    y3_ghost_end = func.quadratic_extrapolation(
-        column_grid["xWalls"][-(column_grid["nGhost"]+1)], y3_right, 
-        column_grid["xCentres"][-(column_grid["nGhost"]+1)], y3[-1], 
-        column_grid["xCentres"][-(column_grid["nGhost"]+2)], y3[-2], 
-        column_grid["xCentres"][-1])"""
     
     y3_ghost_start = y3[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
                     (y3[0] - y3_left) / (column_grid["xCentres"][column_grid["nGhost"]] - 
@@ -498,17 +462,6 @@ def ghost_cell_calculations(P, T, Tw, y1, y2, y3,
     y3_all = np.concatenate((np.array([y3_ghost_start]), y3, np.array([y3_ghost_end])))
     
     # Temperature ghost cells
-    """T_ghost_start = func.quadratic_extrapolation(
-        column_grid["xWalls"][column_grid["nGhost"]], T_inlet, 
-        column_grid["xCentres"][column_grid["nGhost"]], T[0], 
-        column_grid["xCentres"][column_grid["nGhost"]+1], T[1], 
-        column_grid["xCentres"][0])
-    
-    T_ghost_end = func.quadratic_extrapolation(
-        column_grid["xWalls"][-(column_grid["nGhost"]+1)], T_right, 
-        column_grid["xCentres"][-(column_grid["nGhost"]+1)], T[-1], 
-        column_grid["xCentres"][-(column_grid["nGhost"]+2)], T[-2], 
-        column_grid["xCentres"][-1])"""
     
     T_ghost_start = T[0] + (column_grid["xCentres"][0] - column_grid["xCentres"][1]) * \
                     (T[0] - T_left) / (column_grid["xCentres"][column_grid["nGhost"]] - 
@@ -619,7 +572,7 @@ def calculate_internal_wall_values(P_all, T_all, Tw_all, y1_all, y2_all, y3_all,
     
     return P_walls, T_walls, Tw_walls, y1_walls, y2_walls, y3_walls, v_walls, dTdz_walls, dTwdz_walls
 
-def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values, right_values, column_direction, stage):
+def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values, right_values, column_direction, stage, P_initial):
     """
     Calculate the ODEs for the adsorption column model.
     
@@ -948,7 +901,9 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     dE1dt = (bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi * Cp_g * v_walls[0] * T_walls[0] * P_walls[0] / (bed_properties["R"] * T_walls[0]))
     dE2dt = (bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi * Cp_g * v_walls[-1] * T_walls[-1] * P_walls[-1] / (bed_properties["R"] * T_walls[-1]))
     dE3dt = np.sum(2 * np.pi * bed_properties["outer_bed_radius"] * h_wall * (Tw - bed_properties["ambient_temperature"]) * column_grid["deltaZ"][1:-1])
-    dEdt = np.array([dE1dt, dE2dt, dE3dt])
+    dE4dt = np.sum(2 * np.pi * bed_properties["inner_bed_radius"] * h_bed * (T - Tw) * column_grid["deltaZ"][1:-1])
+    dE5dt = 1 / bed_properties["compressor_efficiency"] * np.sum(dFdt[4:]) * bed_properties["R"] * T_walls[-1] * np.log(bed_properties["P_ref"] / P_walls[-1])
+    dEdt = np.array([dE1dt, dE2dt, dE3dt, dE4dt, dE5dt])
 
     # Combine derivatives into a single vector
     if column_direction == "forwards":
