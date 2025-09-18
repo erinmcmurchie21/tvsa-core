@@ -315,7 +315,11 @@ def calculate_gas_density(P, T):
     R = 8.314
     return P / (R * T)  # mol/m³
 
-
+def relative_humidity_to_mole_fraction(RH, P, T):
+    P_sat = 10**(8.07131-1730.63/(233.426+(T-273.15)))  # Pressure in mmHg, Antoine equation for water, Ward et al. 2024
+    P_sat_Pa = P_sat * 133.322  # Convert mmHg to Pa
+    y2 = RH * P_sat_Pa / P
+    return y2
 
 # ============================================================
 # 5. BALANCE ERROR FUNCTIONS

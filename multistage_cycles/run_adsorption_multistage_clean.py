@@ -3,7 +3,7 @@ from scipy.integrate import solve_ivp
 from additional_functions_multistage import (
     create_non_uniform_grid, adsorption_isotherm_1, adsorption_isotherm_2, 
     total_mass_balance_error, create_multi_plot, create_quick_plot, 
-    product_mass, cycle_error
+    product_mass, cycle_error, relative_humidity_to_mole_fraction
 )
 import time
 import tvsa_adsorption_column_multistage as column
@@ -13,6 +13,8 @@ Multi-stage adsorption column simulation for CO2 capture.
 
 This script simulates a Temperature/Vacuum Swing Adsorption (TVSA) process
 for CO2 separation from a gas mixture containing CO2, H2O, N2, and O2.
+
+This is a version which uses the same sorbent and cycle properties as that in Stampi-Bombelli, 2020.
 
 The simulation includes five stages:
 1. Adsorption - CO2 capture at ambient conditions
@@ -38,23 +40,23 @@ def create_fixed_properties():
     # Column dimensions and physical properties
     bed_properties = {
         # Geometry
-        "bed_length": 0.286,                    # Bed length [m]
-        "inner_bed_radius": 0.00945,           # Inner radius [m]
-        "outer_bed_radius": 0.0127,            # Outer radius [m]
-        "column_area": 0.00945**2 * np.pi,     # Cross-sectional area [m²]
+        "bed_length": 0.01,                    # Bed length [m]
+        "inner_bed_radius": 0.04,           # Inner radius [m]
+        "outer_bed_radius": 0.041,            # Outer radius [m]
+        "column_area": 0.04**2 * np.pi,     # Cross-sectional area [m²]
         
         # Porosity and density
         "bed_voidage": 0.456,                  # Bed voidage [-]
         "particle_voidage": 0.59,              # Particle voidage [-]
         "total_voidage": 0.456 + (1-0.456)*0.59,  # Total voidage [-]
-        "bed_density": 435,                    # Bed density [kg/m³]
-        "sorbent_density": 900,                # Sorbent density [kg/m³]
+        "bed_density": 55.4,                    # Bed density [kg/m³]
+        "sorbent_density": 1590,                # Sorbent density [kg/m³]
         "wall_density": 2700,                  # Wall density [kg/m³]
         
         # Transport properties
         "tortuosity": 3,                       # Tortuosity factor [-]
         "molecular_diffusivity": 0.605e-5,     # Molecular diffusivity [m²/s]
-        "particle_diameter": 2e-3,             # Particle diameter [m]
+        "particle_diameter": 0.0075,             # Particle diameter [m]
         "K_z": 0.1,                          # Axial dispersion coefficient [m²/s]
         "mu": 1.78e-5,                        # Gas viscosity [Pa·s]
         
@@ -63,12 +65,12 @@ def create_fixed_properties():
         "mass_transfer_2": 0.002,              # H2O mass transfer coeff [s⁻¹]
         
         # Heat transfer properties
-        "h_bed": 50,                          # Bed heat transfer coeff [W/m²·K]
-        "h_wall": 7,                          # Wall heat transfer coeff [W/m²·K]
-        "sorbent_heat_capacity": 1040,         # Solid heat capacity [J/kg·K]
-        "wall_heat_capacity": 902,             # Wall heat capacity [J/kg·K]
-        "heat_capacity_1": 840 * 44.01 / 1000, # CO2 adsorbed phase Cp [J/mol·K]
-        "heat_capacity_2": 30,                 # H2O adsorbed phase Cp [J/mol·K]
+        "h_bed": 3,                          # Bed heat transfer coeff [W/m²·K]
+        "h_wall": 26,                          # Wall heat transfer coeff [W/m²·K]
+        "sorbent_heat_capacity": 2070,         # Solid heat capacity [J/kg·K]
+        "wall_heat_capacity": 4e6 / 1590,             # Wall heat capacity [J/kg·K]
+        "heat_capacity_1": 42.46,          # CO2 adsorbed phase Cp [J/mol·K]
+        "heat_capacity_2": 73.1,                 # H2O adsorbed phase Cp [J/mol·K]
         
         # Molecular weights
         "MW_1": 44.01,  # CO2 [g/mol]
@@ -81,8 +83,8 @@ def create_fixed_properties():
         "ambient_temperature": 293.15,         # Ambient temperature [K]
         
         # Adsorption isotherms
-        "isotherm_type_1": "Dual_site Langmuir",  # CO2 isotherm type
-        "isotherm_type_2": "None",                # H2O isotherm type
+        "isotherm_type_1": "Toth",  # CO2 isotherm type
+        "isotherm_type_2": "GAB",                # H2O isotherm type
         
         # Reference values for scaling (dimensionless variables)
         "P_ref": 101325,    # Reference pressure [Pa]
@@ -108,8 +110,8 @@ def create_fixed_properties():
     P_init = np.ones(num_cells) * 101325      # Pressure [Pa]
     T_init = np.ones(num_cells) * 292         # Gas temperature [K]
     Tw_init = np.ones(num_cells) * 292        # Wall temperature [K]
-    y1_init = np.ones(num_cells) * 0.02       # CO2 mole fraction
-    y2_init = np.ones(num_cells) * 1e-6       # H2O mole fraction
+    y1_init = np.ones(num_cells) * 400e-6     # CO2 mole fraction
+    y2_init = np.ones(num_cells) * relative_humidity_to_mole_fraction(0.4, P_init, T_init)       # H2O mole fraction
     y3_init = np.ones(num_cells) * 0.95       # N2 mole fraction
     
     # Calculate initial adsorbed amounts from equilibrium isotherms
@@ -179,15 +181,15 @@ def pressure_ramp(t, stage, pressure_previous_stage):
     elif stage == "blowdown":
         # Exponential pressure drop from atmospheric to vacuum
         initial_pressure = pressure_previous_stage
-        final_pressure = 40000  # Target vacuum pressure [Pa]
+        final_pressure = 50000  # Target vacuum pressure [Pa]
         tau = 1 - 1/np.e       # Time constant
         return final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
         
     elif stage == "heating":
         # Maintain vacuum pressure during heating
         initial_pressure = pressure_previous_stage
-        final_pressure = 40000
-        tau = 1 - 1/np.e
+        final_pressure = 50000
+        tau = 2
         return final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
         
     elif stage == "pressurisation":
@@ -234,11 +236,11 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     config = stage_config[stage]
     
     # Standard operating conditions
-    operating_velocity = 100 / 60 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"]  # [m/s]
+    operating_velocity = 50 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"]  # [m/s]
     operating_temperature = 293.15  # [K]
     
     # Feed composition (CO2 capture from air-like mixture)
-    feed_composition = {"y1": 0.15, "y2": 1e-6, "y3": 0.84}  # CO2, H2O, N2
+    feed_composition = {"y1": 0.0004, "y2": 0.0115, "y3": 0.98}  # CO2, H2O, N2
     
     # Product composition (high purity CO2)
     product_composition = {"y1": 0.9999, "y2": 1e-6, "y3": 1e-6}
@@ -435,19 +437,27 @@ def run_cycle(n_cycles):
         
         # Define stage sequence and durations
         stages = [
-            ("adsorption", [0, 200]),
-            ("blowdown", [0, 50]),
-            ("heating", [0, 1000]),
+            ("adsorption", [0, 500]),
+            ("blowdown", [0, 30]),
+            ("heating", [0, 500]),
             ("pressurisation", [0, 30]),
-            ("cooling", [0, 500])
+            #("cooling", [0, 500], 4)
         ]
+
+        stage_key = {
+            "adsorption": 0,
+            "blowdown": 1,
+            "heating": 2,
+            "pressurisation": 3,
+            "cooling": 4
+        }
         
         stage_conditions = current_initial_conditions
         
         for stage_name, t_span in stages:
             # Special handling for heating stage (increase wall temperature)
             if stage_name == "heating":
-                stage_conditions[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = 400/bed_properties["T_ref"]
+                stage_conditions[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = 95/bed_properties["T_ref"]
                 
 
             # Define boundary conditions
@@ -508,7 +518,7 @@ def run_cycle(n_cycles):
         recovery_rate = (cycle_profiles['mols_CO2_out'][heating_stage_idx] / 
                         sum(cycle_profiles['mols_CO2_in']))
         
-        thermal_energy_input = cycle_profiles['thermal_energy_input'][2] # Heating stage
+        thermal_energy_input = cycle_profiles['thermal_energy_input'][stage_key["heating"]] # Heating stage
         vacuum_energy_input = np.sum(cycle_profiles['vacuum_energy_input'])  # Blowdown and Heating stages
         
         print(f"Cycle {cycle + 1} Results:")
