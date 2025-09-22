@@ -659,12 +659,12 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     
     # Solid phase balance for adsorbed components
     # ∂q₁/∂t = k₁(q₁* - q₁)
-    dn1dt = k1_validation * (func.adsorption_isotherm_1(P, T, y1, y2, y3, n1, bed_properties, isotherm_type_1=isotherm_type_1)[0] - n1) # mol / m3
+    dn1dt = k1 * (func.adsorption_isotherm_1(P, T, y1, y2, y3, n1, bed_properties, isotherm_type_1=isotherm_type_1)[0] - n1) # mol / m3
     deltaH_1 = func.adsorption_isotherm_1(P, T, y1, y2, y3, n1, bed_properties, isotherm_type_1=isotherm_type_1)[1]  # Heat of adsorption (J/mol)
 
 
     # ∂q₂/∂t = k₂(q₂* - q₂)
-    dn2dt = 0 * k2 * (func.adsorption_isotherm_2(P, T, y2, bed_properties, isotherm_type=isotherm_type_2)[0] - n2)
+    dn2dt = k2 * (func.adsorption_isotherm_2(P, T, y2, bed_properties, isotherm_type=isotherm_type_2)[0] - n2)
     deltaH_2 = func.adsorption_isotherm_2(P, T, y2, bed_properties, isotherm_type=isotherm_type_2)[1]  # Heat of adsorption (J/mol)
 
 

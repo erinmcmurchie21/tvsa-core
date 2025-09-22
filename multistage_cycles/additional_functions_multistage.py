@@ -204,7 +204,7 @@ def build_jacobian(num_cells):
 # 3. ISOTHERM EQUILIBRIA
 # ============================================================
 
-def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties, isotherm_type_1="Dual_site Langmuir"):
+def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties, isotherm_type_1="Toth"):
     """
     Toth isotherm for CO₂ on solid sorbent.
 
@@ -255,7 +255,7 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties,
     
     return load_m3, ΔH
 
-def adsorption_isotherm_2(pressure, temperature, y2, bed_properties, isotherm_type="None"):
+def adsorption_isotherm_2(pressure, temperature, y2, bed_properties, isotherm_type="GAB"):
     """
     GAB isotherm for H₂O.
 
@@ -498,7 +498,7 @@ def create_combined_plot(time, T_result, P_result, y1_result, n1_result, y1_wall
     plt.tight_layout()
     plt.show()
 
-def create_multi_plot(plots, ncols=3, figsize=(15, 8)):
+def create_multi_plot(data):
     """
     Create a grid of subplots for multiple time series.
 
@@ -511,23 +511,76 @@ def create_multi_plot(plots, ncols=3, figsize=(15, 8)):
     figsize : tuple, optional
         Size of the whole figure
     """
-    n = len(plots)
-    nrows = math.ceil(n / ncols)
+    (temperature_profile, outlet_CO2_profile, outlet_H2O_profile, time_profile, 
+     pressure_profile_inlet, pressure_profile_outlet, adsorbed_CO2_profile, 
+     adsorbed_H2O_profile, wall_temperature_profile, all_cycle_errors) = data
+    
+    time = time_profile
+    T_gas = temperature_profile
+    T_wall = wall_temperature_profile
+    P_inlet = pressure_profile_inlet
+    P_outlet = pressure_profile_outlet
+    outlet_CO2 = outlet_CO2_profile
+    outlet_H2O = outlet_H2O_profile
+    adsorbed_CO2 = adsorbed_CO2_profile
+    adsorbed_H2O = adsorbed_H2O_profile
 
-    fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
+    figsize=(15, 8)
+    fig, axes = plt.subplots(2, 3, figsize=figsize)
     axes = axes.ravel()
 
-    for i, (x, y, title, ylabel) in enumerate(plots):
-        ax = axes[i]
-        ax.plot(x, y)
-        ax.set_title(title)
-        ax.set_ylabel(ylabel)
-        if i >= (n - ncols):  # last row → show x-axis
-            ax.set_xlabel("Time (s)")
+    # 1. Temperature overlay (gas and wall)
+    ax = axes[0]
+    ax.plot(time, T_gas, label="Gas Temp (mid)", color="tab:blue")
+    ax.plot(time, T_wall, label="Wall Temp (mid)", color="tab:orange")
+    ax.set_title("Temperature Profiles")
+    ax.set_ylabel("Temperature (K)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
 
-    # Turn off unused subplots (if any)
-    for j in range(i+1, len(axes)):
-        axes[j].axis("off")
+    # 2. Pressure overlay (inlet and outlet)
+    ax = axes[1]
+    ax.plot(time, P_inlet, label="Inlet Pressure", color="tab:green")
+    ax.plot(time, P_outlet, label="Outlet Pressure", color="tab:red")
+    ax.set_title("Pressure Profiles")
+    ax.set_ylabel("Pressure (Pa)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    # 3. CO2 gas phase (outlet and mid)
+    ax = axes[2]
+    ax.plot(time, outlet_CO2, label="CO2 Outlet", color="tab:purple")
+    ax.set_title("CO2 Gas Phase")
+    ax.set_ylabel("CO2 Mole Fraction")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    # 4. CO2 adsorbed
+    ax = axes[3]
+    ax.plot(time, adsorbed_CO2, label="CO2 Adsorbed (mid)", color="tab:blue")
+    ax.set_title("CO2 Adsorbed")
+    ax.set_ylabel("CO2 Loading (mol/m³)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    # 5. H2O gas phase (outlet and mid)
+    ax = axes[4]
+    ax.plot(time, outlet_H2O, label="H2O Outlet", color="tab:purple")
+    ax.set_title("H2O Gas Phase")
+    ax.set_ylabel("H2O Mole Fraction")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    # 6. H2O adsorbed
+    ax = axes[5]
+    ax.plot(time, adsorbed_H2O, label="H2O Adsorbed (mid)", color="tab:blue")
+    ax.set_title("H2O Adsorbed")
+    ax.set_ylabel("H2O Loading (mol/m³)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    for ax in axes:
+        ax.set_xlabel("Time (s)")
 
     plt.tight_layout()
     plt.show()

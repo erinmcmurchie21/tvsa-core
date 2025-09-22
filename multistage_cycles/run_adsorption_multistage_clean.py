@@ -7,6 +7,7 @@ from additional_functions_multistage import (
 )
 import time
 import tvsa_adsorption_column_multistage as column
+import matplotlib.pyplot as plt
 
 """
 Multi-stage adsorption column simulation for CO2 capture.
@@ -46,9 +47,9 @@ def create_fixed_properties():
         "column_area": 0.04**2 * np.pi,     # Cross-sectional area [m²]
         
         # Porosity and density
-        "bed_voidage": 0.456,                  # Bed voidage [-]
+        "bed_voidage": 0.092,                  # Bed voidage [-]
         "particle_voidage": 0.59,              # Particle voidage [-]
-        "total_voidage": 0.456 + (1-0.456)*0.59,  # Total voidage [-]
+        "total_voidage": 0.092* 0.92 + (1-0.92)*0.59,  # Total voidage [-]
         "bed_density": 55.4,                    # Bed density [kg/m³]
         "sorbent_density": 1590,                # Sorbent density [kg/m³]
         "wall_density": 2700,                  # Wall density [kg/m³]
@@ -110,7 +111,7 @@ def create_fixed_properties():
     P_init = np.ones(num_cells) * 101325      # Pressure [Pa]
     T_init = np.ones(num_cells) * 292         # Gas temperature [K]
     Tw_init = np.ones(num_cells) * 292        # Wall temperature [K]
-    y1_init = np.ones(num_cells) * 400e-6     # CO2 mole fraction
+    y1_init = np.ones(num_cells) * 1e-6     # CO2 mole fraction
     y2_init = np.ones(num_cells) * relative_humidity_to_mole_fraction(0.4, P_init, T_init)       # H2O mole fraction
     y3_init = np.ones(num_cells) * 0.95       # N2 mole fraction
     
@@ -144,9 +145,9 @@ def create_fixed_properties():
     atol_P = 1e-4 * np.ones(len(P_init))     # Pressure
     atol_T = 1e-4 * np.ones(len(T_init))     # Temperature
     atol_Tw = 1e-4 * np.ones(len(Tw_init))   # Wall temperature
-    atol_y1 = 1e-8 * np.ones(len(y1_init))   # CO2 mole fraction
-    atol_y2 = 1e-8 * np.ones(len(y2_init))   # H2O mole fraction
-    atol_y3 = 1e-8 * np.ones(len(y3_init))   # N2 mole fraction
+    atol_y1 = 1e-6 * np.ones(len(y1_init))   # CO2 mole fraction
+    atol_y2 = 1e-6 * np.ones(len(y2_init))   # H2O mole fraction
+    atol_y3 = 1e-6 * np.ones(len(y3_init))   # N2 mole fraction
     atol_n1 = 1e-3 * np.ones(len(n1_init))   # CO2 adsorbed amount
     atol_n2 = 1e-3 * np.ones(len(n2_init))   # H2O adsorbed amount
     atol_F = 1e-4 * np.ones(len(F_init))     # Flow variables
@@ -236,8 +237,8 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     config = stage_config[stage]
     
     # Standard operating conditions
-    operating_velocity = 50 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"]  # [m/s]
-    operating_temperature = 293.15  # [K]
+    feed_velocity = 50 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"]  # [m/s]
+    feed_temperature = 293.15  # [K]
     
     # Feed composition (CO2 capture from air-like mixture)
     feed_composition = {"y1": 0.0004, "y2": 0.0115, "y3": 0.98}  # CO2, H2O, N2
@@ -248,7 +249,7 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     # Left boundary conditions
     def get_left_velocity():
         if stage in ["adsorption", "cooling"]:
-            return operating_velocity
+            return feed_velocity
         return 0  # No flow for closed boundary
     
     def get_left_pressure_func():
@@ -261,7 +262,7 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
         "velocity": get_left_velocity(),
         "left_volume_flow": 1.6667e-6,  # [m³/s]
         "left_mass_flow": 0.01 * bed_properties["column_area"] * 1.13,  # [kg/s]
-        "left_temperature": operating_temperature,
+        "left_temperature": feed_temperature,
         "left_pressure": get_left_pressure_func(),
         "y1_left_value": feed_composition["y1"],
         "y2_left_value": feed_composition["y2"],
@@ -277,7 +278,7 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     right_values = {
         "right_type": config["right"],
         "right_pressure_func": get_right_pressure_func(),
-        "right_temperature": operating_temperature,
+        "right_temperature": feed_temperature,
         "y1_right_value": product_composition["y1"],
         "y2_right_value": product_composition["y2"],
         "y3_right_value": product_composition["y3"],
@@ -400,7 +401,7 @@ def run_stage(left_values, right_values, column_direction, stage, t_span,
     
     # Return simulation results
     return (final_conditions, time_array, P_result, T_result, Tw_result,
-            y1_result, n1_result, E_final,P_walls_result, mols_CO2_out_st, 
+            y1_result, y2_result, n1_result, n2_result, E_final, P_walls_result, mols_CO2_out_st, 
             mols_carrier_gas_out_st, mols_CO2_in_st, stage_energy)
 
 
@@ -420,9 +421,9 @@ def run_cycle(n_cycles):
     # Initialize profile storage
     profiles = {
         'time': [], 'temperature': [], 'pressure_inlet': [], 'pressure_outlet': [],
-        'outlet_CO2': [], 'adsorbed_CO2': [], 'wall_temperature': [],
-        'mols_CO2_out': [], 'mols_carrier_gas_out': [], 'mols_CO2_in': [], 'thermal_energy_input': [], 'vacuum_energy_input': []
-
+        'outlet_CO2': [], 'adsorbed_CO2': [], 'outlet_H2O': [], 'adsorbed_H2O': [], 
+        'wall_temperature': [], 'mols_CO2_out': [], 'mols_carrier_gas_out': [], 
+        'mols_CO2_in': [], 'thermal_energy_input': [], 'vacuum_energy_input': []
     }
     
     P_walls_final = initial_conditions[0:column_grid["num_cells"]] * bed_properties["P_ref"]
@@ -437,10 +438,10 @@ def run_cycle(n_cycles):
         
         # Define stage sequence and durations
         stages = [
-            ("adsorption", [0, 500]),
+            ("adsorption", [0, 13772]),
             ("blowdown", [0, 30]),
-            ("heating", [0, 500]),
-            ("pressurisation", [0, 30]),
+            ("heating", [0, 30704]),
+            ("pressurisation", [0, 50]),
             #("cooling", [0, 500], 4)
         ]
 
@@ -457,7 +458,7 @@ def run_cycle(n_cycles):
         for stage_name, t_span in stages:
             # Special handling for heating stage (increase wall temperature)
             if stage_name == "heating":
-                stage_conditions[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = 95/bed_properties["T_ref"]
+                stage_conditions[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = (95+273)/bed_properties["T_ref"]
                 
 
             # Define boundary conditions
@@ -475,9 +476,9 @@ def run_cycle(n_cycles):
             
             # Unpack results
             (stage_conditions, time_array, P_result, T_result, Tw_result,
-             y1_result, n1_result, E_final,P_walls_result, mols_CO2_out_st, 
+             y1_result, y2_result, n1_result, n2_result, E_final, P_walls_result, mols_CO2_out_st, 
              mols_carrier_gas_out_st, mols_CO2_in_st, stage_energy) = stage_results
-            
+
             # Update wall pressures for next stage
             P_walls_final = P_walls_result[:, -1]
             
@@ -490,8 +491,9 @@ def run_cycle(n_cycles):
             cycle_profiles['outlet_CO2'].extend(y1_result[-1, :])  # Assuming outlet CO2
             cycle_profiles['adsorbed_CO2'].extend(n1_result[column_grid["num_cells"]//2, :])
             cycle_profiles['wall_temperature'].extend(Tw_result[column_grid["num_cells"]//2, :])
-            
-            
+            cycle_profiles['adsorbed_H2O'].extend(n2_result[column_grid["num_cells"]//2, :])
+            cycle_profiles['outlet_H2O'].extend(y2_result[-1, :])  # Assuming outlet H2O
+
             # Update time offset
             time_offset = adjusted_time[-1]
             
@@ -540,10 +542,10 @@ def run_cycle(n_cycles):
                 break
     else:
         print(f"\nMaximum cycles ({n_cycles}) reached without convergence")
-    
-    return (profiles['temperature'], profiles['outlet_CO2'], profiles['time'],
-            profiles['pressure_inlet'], profiles['pressure_outlet'], 
-            profiles['adsorbed_CO2'], profiles['wall_temperature'], all_cycle_errors)
+
+    return (profiles['temperature'], profiles['outlet_CO2'], profiles['outlet_H2O'], profiles['time'],
+            profiles['pressure_inlet'], profiles['pressure_outlet'],
+            profiles['adsorbed_CO2'], profiles['adsorbed_H2O'], profiles['wall_temperature'], all_cycle_errors)
 
 
 # ============================================================================
@@ -559,7 +561,7 @@ def main():
     
     # Run simulation
     print("Starting TVSA simulation...")
-    n_cycles = 10
+    n_cycles = 20
     
     simulation_results = run_cycle(n_cycles)
     
@@ -568,22 +570,13 @@ def main():
         return
     
     # Unpack results
-    (temperature_profile, outlet_CO2_profile, time_profile, 
+    (temperature_profile, outlet_CO2_profile, outlet_H2O_profile, time_profile, 
      pressure_profile_inlet, pressure_profile_outlet, adsorbed_CO2_profile, 
-     wall_temperature_profile, all_cycle_errors) = simulation_results
-    
-    # Generate plots
-    plots = [
-        (time_profile, temperature_profile, "Temperature at Column Midpoint", "Temperature (K)"),
-        (time_profile, pressure_profile_inlet, "Inlet Pressure", "Pressure (Pa)"),
-        (time_profile, pressure_profile_outlet, "Outlet Pressure", "Pressure (Pa)"),
-        (time_profile, outlet_CO2_profile, "Outlet CO2 Concentration", "Mole Fraction"),
-        (time_profile, adsorbed_CO2_profile, "Adsorbed CO2 at Midpoint", "Concentration (mol/m³)"),
-        (time_profile, wall_temperature_profile, "Wall Temperature at Midpoint", "Temperature (K)")
-    ]
-    
+     adsorbed_H2O_profile, wall_temperature_profile, all_cycle_errors) = simulation_results
+
+
     # Create visualization
-    create_multi_plot(plots, ncols=3)
+    create_multi_plot(simulation_results)
     create_quick_plot(np.arange(1, len(all_cycle_errors)+1), 
                      np.log10(all_cycle_errors), "Cycle Convergence", "Log₁₀(Cycle Error)")
     
