@@ -445,6 +445,8 @@ def run_cycle(n_cycles):
             #("cooling", [0, 500], 4)
         ]
 
+        cycle_time = np.sum([t[1] - t[0] for _, t in stages])
+
         stage_key = {
             "adsorption": 0,
             "blowdown": 1,
@@ -519,13 +521,18 @@ def run_cycle(n_cycles):
         
         recovery_rate = (cycle_profiles['mols_CO2_out'][heating_stage_idx] / 
                         sum(cycle_profiles['mols_CO2_in']))
-        
+        productivity = (cycle_profiles['mols_CO2_out'][heating_stage_idx] * bed_properties["MW_1"]/ bed_properties["sorbent_mass"] / cycle_time) # mol/s
+        daily_productivity = productivity * 86400 * bed_properties["sorbent_mass"] # kgCO2/day
+        bed_size_factor = bed_properties["sorbent_mass"] / daily_productivity
         thermal_energy_input = cycle_profiles['thermal_energy_input'][stage_key["heating"]] # Heating stage
         vacuum_energy_input = np.sum(cycle_profiles['vacuum_energy_input'])  # Blowdown and Heating stages
         
         print(f"Cycle {cycle + 1} Results:")
         print(f"  Purity: {cycle_purity:.6f}")
         print(f"  Recovery Rate: {recovery_rate:.6f}")
+        print(f"  Productivity (gCO2 /kg sorbent/s): {productivity:.6f}")
+        print(f"  Daily Productivity (kgCO2/day): {daily_productivity:.2f}")
+        print(f"  Bed Size Factor: {bed_size_factor:.2f}")
         print(f"  Cycle Error: {cycle_error_value}")
         print("  Thermal Energy Input (J): ", thermal_energy_input)
         print("  Vacuum Energy Input (J): ", vacuum_energy_input)
@@ -561,7 +568,7 @@ def main():
     
     # Run simulation
     print("Starting TVSA simulation...")
-    n_cycles = 20
+    n_cycles = 50
     
     simulation_results = run_cycle(n_cycles)
     
@@ -576,7 +583,7 @@ def main():
 
 
     # Create visualization
-    create_multi_plot(simulation_results)
+    create_multi_plot(simulation_results, bed_properties)
     create_quick_plot(np.arange(1, len(all_cycle_errors)+1), 
                      np.log10(all_cycle_errors), "Cycle Convergence", "Log₁₀(Cycle Error)")
     

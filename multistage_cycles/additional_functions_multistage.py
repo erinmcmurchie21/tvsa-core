@@ -498,7 +498,7 @@ def create_combined_plot(time, T_result, P_result, y1_result, n1_result, y1_wall
     plt.tight_layout()
     plt.show()
 
-def create_multi_plot(data):
+def create_multi_plot(data, bed_properties):
     """
     Create a grid of subplots for multiple time series.
 
@@ -522,8 +522,8 @@ def create_multi_plot(data):
     P_outlet = pressure_profile_outlet
     outlet_CO2 = outlet_CO2_profile
     outlet_H2O = outlet_H2O_profile
-    adsorbed_CO2 = adsorbed_CO2_profile
-    adsorbed_H2O = adsorbed_H2O_profile
+    adsorbed_CO2 = adsorbed_CO2_profile / (bed_properties["bed_density"] / (1 - bed_properties["bed_voidage"]))
+    adsorbed_H2O = adsorbed_H2O_profile / (bed_properties["bed_density"] / (1 - bed_properties["bed_voidage"]))
 
     figsize=(15, 8)
     fig, axes = plt.subplots(2, 3, figsize=figsize)
