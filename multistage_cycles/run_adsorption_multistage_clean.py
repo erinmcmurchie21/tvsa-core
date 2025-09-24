@@ -49,7 +49,7 @@ def create_fixed_properties():
         # Porosity and density
         "bed_voidage": 0.092,                  # Bed voidage [-]
         "particle_voidage": 0.59,              # Particle voidage [-]
-        "total_voidage": 0.092* 0.92 + (1-0.92)*0.59,  # Total voidage [-]
+        "total_voidage": 0.092,  # Total voidage [-]
         "bed_density": 55.4,                    # Bed density [kg/m³]
         "sorbent_density": 1590,                # Sorbent density [kg/m³]
         "wall_density": 2700,                  # Wall density [kg/m³]
@@ -82,6 +82,15 @@ def create_fixed_properties():
         # Thermodynamic properties
         "R": 8.314,                           # Universal gas constant [J/mol·K]
         "ambient_temperature": 293.15,         # Ambient temperature [K]
+        "ambient_pressure": 101325,            # Ambient pressure [Pa]
+
+        # Optimisation parameters
+        "desorption_temperature": 368.15,      # Desorption temperature [K]
+        "vacuum_pressure": 50000,            # Vacuum pressure [Pa]
+        "adsorption_time": 13772,              # Adsorption time [s]
+        "blowdown_time": 30,                   # Blowdown time [s]
+        "heating_time": 30704,                 # Heating time [s]
+        "pressurisation_time": 50,             # Pressurisation time [s]
         
         # Adsorption isotherms
         "isotherm_type_1": "Toth",  # CO2 isotherm type
@@ -93,8 +102,8 @@ def create_fixed_properties():
         "n_ref": 3000,      # Reference adsorbed amount [mol/m³]
         
         # Calculated properties
-        "sorbent_mass": 0.286 * 0.00945**2 * np.pi * 435,          # [kg]
-        "sorbent_volume": 0.286 * 0.00945**2 * np.pi * (1-0.456),  # [m³]
+        "sorbent_mass": 0.286 * 0.00945**2 * np.pi * 55.4,          # [kg]
+        "sorbent_volume": 0.286 * 0.00945**2 * np.pi * (1-0.092),  # [m³]
         
         # Efficiencies
         "compressor_efficiency": 0.75,  # Compressor efficiency
@@ -145,9 +154,9 @@ def create_fixed_properties():
     atol_P = 1e-4 * np.ones(len(P_init))     # Pressure
     atol_T = 1e-4 * np.ones(len(T_init))     # Temperature
     atol_Tw = 1e-4 * np.ones(len(Tw_init))   # Wall temperature
-    atol_y1 = 1e-6 * np.ones(len(y1_init))   # CO2 mole fraction
-    atol_y2 = 1e-6 * np.ones(len(y2_init))   # H2O mole fraction
-    atol_y3 = 1e-6 * np.ones(len(y3_init))   # N2 mole fraction
+    atol_y1 = 1e-8 * np.ones(len(y1_init))   # CO2 mole fraction
+    atol_y2 = 1e-8 * np.ones(len(y2_init))   # H2O mole fraction
+    atol_y3 = 1e-8 * np.ones(len(y3_init))   # N2 mole fraction
     atol_n1 = 1e-3 * np.ones(len(n1_init))   # CO2 adsorbed amount
     atol_n2 = 1e-3 * np.ones(len(n2_init))   # H2O adsorbed amount
     atol_F = 1e-4 * np.ones(len(F_init))     # Flow variables
@@ -177,26 +186,26 @@ def pressure_ramp(t, stage, pressure_previous_stage):
     """
     if stage == "adsorption":
         # Maintain atmospheric pressure during adsorption
-        return 101325
+        return bed_properties["ambient_pressure"]
         
     elif stage == "blowdown":
         # Exponential pressure drop from atmospheric to vacuum
         initial_pressure = pressure_previous_stage
-        final_pressure = 50000  # Target vacuum pressure [Pa]
+        final_pressure = bed_properties["vacuum_pressure"]  # Target vacuum pressure [Pa]
         tau = 1 - 1/np.e       # Time constant
         return final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
         
     elif stage == "heating":
         # Maintain vacuum pressure during heating
         initial_pressure = pressure_previous_stage
-        final_pressure = 50000
+        final_pressure = bed_properties["vacuum_pressure"]
         tau = 2
         return final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
         
     elif stage == "pressurisation":
         # Rapid pressurization back to atmospheric
         initial_pressure = pressure_previous_stage
-        final_pressure = 101325  # Slightly above atmospheric [Pa]
+        final_pressure = bed_properties["ambient_pressure"]  # Slightly above atmospheric [Pa]
         tau = 0.2               # Fast time constant
         return final_pressure - (final_pressure - initial_pressure) * np.exp(-t / tau)
         
@@ -239,6 +248,8 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     # Standard operating conditions
     feed_velocity = 50 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"]  # [m/s]
     feed_temperature = 293.15  # [K]
+
+    
     
     # Feed composition (CO2 capture from air-like mixture)
     feed_composition = {"y1": 0.0004, "y2": 0.0115, "y3": 0.98}  # CO2, H2O, N2
@@ -251,7 +262,12 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
         if stage in ["adsorption", "cooling"]:
             return feed_velocity
         return 0  # No flow for closed boundary
-    
+
+    def get_left_vol_flow():
+        if get_left_velocity() > 0:
+            return feed_velocity * bed_properties["column_area"] * bed_properties["bed_voidage"]
+        return 0
+
     def get_left_pressure_func():
         if stage == "pressurisation":
             return lambda t: pressure_ramp(t, "pressurisation", pressure_left)
@@ -260,7 +276,7 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     left_values = {
         "left_type": config["left"],
         "velocity": get_left_velocity(),
-        "left_volume_flow": 1.6667e-6,  # [m³/s]
+        "left_volume_flow": get_left_vol_flow(),  # [m³/s]
         "left_mass_flow": 0.01 * bed_properties["column_area"] * 1.13,  # [kg/s]
         "left_temperature": feed_temperature,
         "left_pressure": get_left_pressure_func(),
@@ -398,6 +414,8 @@ def run_stage(left_values, right_values, column_direction, stage, t_span,
     )
 
     stage_energy = E_result[:, -1]
+    fan_energy = 1 / bed_properties["compressor_efficiency"] * (P_walls_final[0] - P_walls_final[-1]) * left_values["left_volume_flow"]
+    stage_energy = np.append(stage_energy, fan_energy)  # Append fan energy to stage energy
     
     # Return simulation results
     return (final_conditions, time_array, P_result, T_result, Tw_result,
@@ -423,7 +441,8 @@ def run_cycle(n_cycles):
         'time': [], 'temperature': [], 'pressure_inlet': [], 'pressure_outlet': [],
         'outlet_CO2': [], 'adsorbed_CO2': [], 'outlet_H2O': [], 'adsorbed_H2O': [], 
         'wall_temperature': [], 'mols_CO2_out': [], 'mols_carrier_gas_out': [], 
-        'mols_CO2_in': [], 'thermal_energy_input': [], 'vacuum_energy_input': []
+        'mols_CO2_in': [], 'thermal_energy_input': [], 'vacuum_energy_input': [], 
+        'fan_energy_input': []
     }
     
     P_walls_final = initial_conditions[0:column_grid["num_cells"]] * bed_properties["P_ref"]
@@ -438,10 +457,10 @@ def run_cycle(n_cycles):
         
         # Define stage sequence and durations
         stages = [
-            ("adsorption", [0, 13772]),
-            ("blowdown", [0, 30]),
-            ("heating", [0, 30704]),
-            ("pressurisation", [0, 50]),
+            ("adsorption", [0, bed_properties["adsorption_time"]]),
+            ("blowdown", [0, bed_properties["blowdown_time"]]),
+            ("heating", [0, bed_properties["heating_time"]]),
+            ("pressurisation", [0, bed_properties["pressurisation_time"]]),
             #("cooling", [0, 500], 4)
         ]
 
@@ -460,7 +479,7 @@ def run_cycle(n_cycles):
         for stage_name, t_span in stages:
             # Special handling for heating stage (increase wall temperature)
             if stage_name == "heating":
-                stage_conditions[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = (95+273)/bed_properties["T_ref"]
+                stage_conditions[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = bed_properties["desorption_temperature"]/bed_properties["T_ref"]
                 
 
             # Define boundary conditions
@@ -505,6 +524,7 @@ def run_cycle(n_cycles):
             cycle_profiles['mols_CO2_in'].append(mols_CO2_in_st)
             cycle_profiles['thermal_energy_input'].append(stage_energy[3])
             cycle_profiles['vacuum_energy_input'].append(stage_energy[4])
+            cycle_profiles['fan_energy_input'].append(stage_energy[5])
 
         # Calculate cycle convergence
         cycle_error_value = cycle_error(current_initial_conditions, stage_conditions)
@@ -521,22 +541,27 @@ def run_cycle(n_cycles):
         
         recovery_rate = (cycle_profiles['mols_CO2_out'][heating_stage_idx] / 
                         sum(cycle_profiles['mols_CO2_in']))
-        productivity = (cycle_profiles['mols_CO2_out'][heating_stage_idx] * bed_properties["MW_1"]/ bed_properties["sorbent_mass"] / cycle_time) # mol/s
-        daily_productivity = productivity * 86400 * bed_properties["sorbent_mass"] # kgCO2/day
-        bed_size_factor = bed_properties["sorbent_mass"] / daily_productivity
-        thermal_energy_input = cycle_profiles['thermal_energy_input'][stage_key["heating"]] # Heating stage
-        vacuum_energy_input = np.sum(cycle_profiles['vacuum_energy_input'])  # Blowdown and Heating stages
         
+        mass_CO2_out = cycle_profiles['mols_CO2_out'][heating_stage_idx] * bed_properties["MW_1"] / 1000  # kg
+        productivity = mass_CO2_out / bed_properties["sorbent_mass"] / cycle_time  # kgCO2/kg_sorbent/s
+        daily_productivity = productivity * 86400 * bed_properties["sorbent_mass"] # kgCO2/day
+        daily_productivity /= 1000 # tCO2/day
+        bed_size_factor = bed_properties["sorbent_mass"] / daily_productivity
+        thermal_energy_input = cycle_profiles['thermal_energy_input'][stage_key["heating"]] / mass_CO2_out * 1000 / 10**9 # Heating stage
+        vacuum_energy_input = np.sum(cycle_profiles['vacuum_energy_input']) / mass_CO2_out * 1000 / 10**9 # Blowdown and Heating stages
+        fan_energy = np.sum(cycle_profiles['fan_energy_input']) / mass_CO2_out * 1000 / 10**9 # All stages with flow
+
         print(f"Cycle {cycle + 1} Results:")
         print(f"  Purity: {cycle_purity:.6f}")
         print(f"  Recovery Rate: {recovery_rate:.6f}")
-        print(f"  Productivity (gCO2 /kg sorbent/s): {productivity:.6f}")
-        print(f"  Daily Productivity (kgCO2/day): {daily_productivity:.2f}")
-        print(f"  Bed Size Factor: {bed_size_factor:.2f}")
+        print(f"  Productivity (kgCO2/kg sorbent/s): {productivity:.6e}")
+        print(f"  Daily Productivity (tCO2/day): {daily_productivity:.6e}")
+        print(f"  Bed Size Factor: {bed_size_factor:.2e}")
         print(f"  Cycle Error: {cycle_error_value}")
-        print("  Thermal Energy Input (J): ", thermal_energy_input)
-        print("  Vacuum Energy Input (J): ", vacuum_energy_input)
-        
+        print("  Thermal Energy Input (GJ/tCO2): ", thermal_energy_input)
+        print("  Vacuum Energy Input (GJ/tCO2): ", vacuum_energy_input)
+        print("  Fan Energy Input (GJ/tCO2): ", fan_energy)
+
         # Store final cycle profiles
         if cycle == n_cycles - 1:  # Last cycle
             for key in profiles:
@@ -568,7 +593,7 @@ def main():
     
     # Run simulation
     print("Starting TVSA simulation...")
-    n_cycles = 50
+    n_cycles = 20
     
     simulation_results = run_cycle(n_cycles)
     

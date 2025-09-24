@@ -515,6 +515,10 @@ def create_multi_plot(data, bed_properties):
      pressure_profile_inlet, pressure_profile_outlet, adsorbed_CO2_profile, 
      adsorbed_H2O_profile, wall_temperature_profile, all_cycle_errors) = data
     
+    bed_density = bed_properties["bed_density"]
+    bed_voidage = bed_properties["bed_voidage"]
+    
+    
     time = time_profile
     T_gas = temperature_profile
     T_wall = wall_temperature_profile
@@ -522,8 +526,8 @@ def create_multi_plot(data, bed_properties):
     P_outlet = pressure_profile_outlet
     outlet_CO2 = outlet_CO2_profile
     outlet_H2O = outlet_H2O_profile
-    adsorbed_CO2 = adsorbed_CO2_profile / (bed_properties["bed_density"] / (1 - bed_properties["bed_voidage"]))
-    adsorbed_H2O = adsorbed_H2O_profile / (bed_properties["bed_density"] / (1 - bed_properties["bed_voidage"]))
+    adsorbed_CO2 = np.array(adsorbed_CO2_profile) / (bed_density / (1 - bed_voidage))
+    adsorbed_H2O = np.array(adsorbed_H2O_profile) / (bed_density / (1 - bed_voidage))
 
     figsize=(15, 8)
     fig, axes = plt.subplots(2, 3, figsize=figsize)
