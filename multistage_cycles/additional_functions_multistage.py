@@ -204,7 +204,7 @@ def build_jacobian(num_cells):
 # 3. ISOTHERM EQUILIBRIA
 # ============================================================
 
-def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties, isotherm_type_1="Toth"):
+def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1="Toth"):
     """
     Toth isotherm for CO₂ on solid sorbent.
 
@@ -221,6 +221,21 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, bed_properties,
         n_s = 2.38 * np.exp(0 * (1 - temperature / T_0))         # mol/kg
         b = 70.74 * np.exp(-1*(-57047) / (R * T_0) * (1-T_0 / temperature))  # kPa⁻¹
         t = 0.4148 - 1.606 * (1 - T_0 / temperature)
+        pressure_kPa = pressure / 1000  # Convert pressure from Pa to kPa
+
+        load_kg = n_s * b * pressure_kPa * y1 / (1 + (b * pressure_kPa * y1)**t)**(1 / t)  # mol/kg
+        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        ΔH = -57047  # J/mol
+
+    elif isotherm_type_1 == "ModifiedToth":
+        T_0 = 296           # Reference temperature (K)
+        n2_mass = n2 / (bed_density / (1 - ε)) # mol/kg
+        gamma = 0.0061 # kg/mol
+        beta = 28.907 # kg/mol
+        n_s = 2.38 * np.exp(0 * (1 - temperature / T_0)) * (1 / (1 - gamma * n2_mass))      # mol/kg
+        b = 70.74 * np.exp(-1*(-57047) / (R * T_0) * (1-T_0 / temperature)) * (1 + beta * n2_mass) # kPa⁻¹
+        t = 0.4148 - 1.606 * (1 - T_0 / temperature)
+        
         pressure_kPa = pressure / 1000  # Convert pressure from Pa to kPa
 
         load_kg = n_s * b * pressure_kPa * y1 / (1 + (b * pressure_kPa * y1)**t)**(1 / t)  # mol/kg
@@ -595,10 +610,12 @@ def create_multi_plot(data, bed_properties):
 
 def product_mass(F, t_cycle, bed_properties):
 
-    mols_of_CO2_product = F[4,-1]
+    mass_CO2_product = F[4,-1] * bed_properties["MW_1"] / 1000  # kg
 
-    mols_of_carrier_gas_product = (F[5,-1] + F[6,-1] + F[7,-1])
+    mass_carrier_gas_product = (F[5,-1] * bed_properties["MW_2"] / 1000 + F[6,-1] * bed_properties["MW_3"] / 1000 + F[7,-1] * bed_properties["MW_4"] / 1000)  # kg
 
-    mols_CO2_in = F[0,-1]
+    mass_CO2_in = F[0,-1] * bed_properties["MW_1"] / 1000  # kg
 
-    return mols_of_CO2_product, mols_of_carrier_gas_product, mols_CO2_in
+    mass_H2O_out = F[5,-1] * bed_properties["MW_2"] / 1000  # kg
+
+    return mass_CO2_product, mass_carrier_gas_product, mass_CO2_in, mass_H2O_out

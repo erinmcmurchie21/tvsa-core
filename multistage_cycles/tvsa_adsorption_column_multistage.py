@@ -659,8 +659,8 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     
     # Solid phase balance for adsorbed components
     # ∂q₁/∂t = k₁(q₁* - q₁)
-    dn1dt = k1 * (func.adsorption_isotherm_1(P, T, y1, y2, y3, n1, bed_properties, isotherm_type_1=isotherm_type_1)[0] - n1) # mol / m3
-    deltaH_1 = func.adsorption_isotherm_1(P, T, y1, y2, y3, n1, bed_properties, isotherm_type_1=isotherm_type_1)[1]  # Heat of adsorption (J/mol)
+    dn1dt = k1 * (func.adsorption_isotherm_1(P, T, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1=isotherm_type_1)[0] - n1) # mol / m3
+    deltaH_1 = func.adsorption_isotherm_1(P, T, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1=isotherm_type_1)[1]  # Heat of adsorption (J/mol)
 
 
     # ∂q₂/∂t = k₂(q₂* - q₂)
@@ -809,7 +809,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     # =========================================================================
     # WALL ENERGY BALANCE
     # =========================================================================
-    if stage == "heating":
+    if stage == "heating" or stage == "desorption":
         dTwdt = np.zeros(num_cells)
     else:
         # Wall temperature second derivative
@@ -902,7 +902,8 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     dE2dt = (bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi * Cp_g * v_walls[-1] * T_walls[-1] * P_walls[-1] / (bed_properties["R"] * T_walls[-1]))
     dE3dt = np.sum(2 * np.pi * bed_properties["outer_bed_radius"] * h_wall * (Tw - bed_properties["ambient_temperature"]) * column_grid["deltaZ"][1:-1])
     dE4dt = np.sum(2 * np.pi * bed_properties["inner_bed_radius"] * h_bed * (T - Tw) * column_grid["deltaZ"][1:-1])
-    dE5dt = 1 / bed_properties["compressor_efficiency"] * np.sum(dFdt[4:]) * bed_properties["R"] * T_walls[-1] * np.log(bed_properties["P_ref"] / P_walls[-1])
+    dE5dt = 1 / bed_properties["compressor_efficiency"] * (bed_properties["k"]/(bed_properties["k"]-1)) * T_walls[-1] * ((bed_properties["ambient_pressure"]/P_walls[-1])**((bed_properties["k"] - 1) / (bed_properties["k"])) - 1) * (dF5dt + dF6dt + dF7dt + dF8dt)
+
     dEdt = np.array([dE1dt, dE2dt, dE3dt, dE4dt, dE5dt])
 
     # Combine derivatives into a single vector

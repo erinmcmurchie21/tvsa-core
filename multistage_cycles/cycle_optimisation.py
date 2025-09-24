@@ -15,6 +15,7 @@ DecisionVector = namedtuple("DecisionVector", [
     "adsorption", # adsorption duration [s]
     "blowdown", # blowdown duration [s]
     "heating", # heating duration [s]
+    "desorption", # desorption duration [s]
     "pressurisation", # pressurisation duration [s]
     "T_des", # desorption temperature [K]
     "P_vac" # vacuum pressure [Pa]
@@ -52,7 +53,7 @@ def run_cycle_with_params(durations, desorption_temp, vacuum_pressure, n_cycles)
 
     # storage
     cycle_profiles = {'time': [], 'temperature': [], 'pressure_inlet': [], 'pressure_outlet': [],
-                      'mols_CO2_out': [], 'mols_carrier_gas_out': [], 'mols_CO2_in': [],
+                      'mass_CO2_out': [], 'mass_carrier_gas_out': [], 'mass_CO2_in': [], 'mass_H2O_out': [],
                       'adsorbed_CO2': [], 'adsorbed_H2O': [], 'wall_temperature': [],
                       'thermal_energy_input': [], 'vacuum_energy_input': [], 'fan_energy_input': []}
 
@@ -64,6 +65,7 @@ def run_cycle_with_params(durations, desorption_temp, vacuum_pressure, n_cycles)
         ("adsorption", [0.0, float(durations['adsorption'])]),
         ("blowdown", [0.0, float(durations['blowdown'])]),
         ("heating", [0.0, float(durations['heating'])]),
+        ("desorption", [0.0, float(durations['desorption'])]),
         ("pressurisation", [0.0, float(durations['pressurisation'])]),
     ]
 
@@ -84,9 +86,9 @@ def run_cycle_with_params(durations, desorption_temp, vacuum_pressure, n_cycles)
 
             # Unpack expected outputs (this follows the structure used in the original module)
             (stage_conditions, time_array, P_result, T_result, Tw_result,
-             y1_result, y2_result, n1_result, n2_result, E_final, P_walls_result, mols_CO2_out_st,
-             mols_carrier_gas_out_st, mols_CO2_in_st, stage_energy) = stage_results
-            
+             y1_result, y2_result, n1_result, n2_result, E_final, P_walls_result, mass_CO2_out_st,
+             mass_carrier_gas_out_st, mass_CO2_in_st, mass_H2O_out_st, stage_energy) = stage_results
+
             # update P_walls_final for next stage
             P_walls_final = P_walls_result[:, -1]
 
@@ -96,9 +98,10 @@ def run_cycle_with_params(durations, desorption_temp, vacuum_pressure, n_cycles)
             cycle_profiles['temperature'].append(float(T_result[mid, -1]))
             cycle_profiles['adsorbed_CO2'].append(float(n1_result[mid, -1]))
             cycle_profiles['wall_temperature'].append(float(Tw_result[mid, -1]))
-            cycle_profiles['mols_CO2_out'].append(float(mols_CO2_out_st))
-            cycle_profiles['mols_carrier_gas_out'].append(float(mols_carrier_gas_out_st))
-            cycle_profiles['mols_CO2_in'].append(float(mols_CO2_in_st))
+            cycle_profiles['mass_CO2_out'].append(float(mass_CO2_out_st))
+            cycle_profiles['mass_carrier_gas_out'].append(float(mass_carrier_gas_out_st))
+            cycle_profiles['mass_CO2_in'].append(float(mass_CO2_in_st))
+            cycle_profiles['mass_H2O_out'].append(float(mass_H2O_out_st))
             cycle_profiles['thermal_energy_input'].append(float(stage_energy[3]))
             cycle_profiles['vacuum_energy_input'].append(float(stage_energy[4]))
             cycle_profiles['fan_energy_input'].append(float(stage_energy[5]))
@@ -109,15 +112,17 @@ def run_cycle_with_params(durations, desorption_temp, vacuum_pressure, n_cycles)
 
     # After cycles, compute KPIs
     # net CO2 removed — take the CO2 moles out associated with the heating stage (index 2)
-    net_CO2_mols = float(cycle_profiles['mols_CO2_out'][2])
-    thermal_energy = float(cycle_profiles['thermal_energy_input'][2])
+    net_CO2_mols = float(cycle_profiles['mass_CO2_out'][3])
+    thermal_energy = float(np.sum(cycle_profiles['thermal_energy_input']))
     vacuum_energy = float(np.sum(cycle_profiles['vacuum_energy_input']))
-    total_energy = thermal_energy + vacuum_energy
+    fan_energy = float(np.sum(cycle_profiles['fan_energy_input']))
+    total_energy = thermal_energy + vacuum_energy + fan_energy
 
     return {
         'net_CO2_mols': net_CO2_mols,
         'thermal_energy': thermal_energy,
         'vacuum_energy': vacuum_energy,
+        'fan_energy': fan_energy,
         'total_energy': total_energy,
         'profiles': cycle_profiles
     }
@@ -130,6 +135,7 @@ def objective_function(params):
         'adsorption': params['adsorption_time'],
         'blowdown': params['blowdown_time'],
         'heating': params['heating_time'],
+        'desorption': params['desorption_time'],
         'pressurisation': params['pressurisation_time']
     }
     desorption_temp = params['desorption_temperature']
@@ -158,7 +164,7 @@ def main():
     global co2_norm, energy_norm
     # We'll normalise CO2 and energy using baseline short-run values (run once)
     print("Preparing baseline evaluation to scale objective...")
-    baseline_durations = {'adsorption': 13772.0, 'blowdown': 30.0, 'heating': 30704.0, 'pressurisation': 50.0}
+    baseline_durations = {'adsorption': 13772.0, 'blowdown': 30.0, 'heating': 704.0, 'desorption': 2000.0, 'pressurisation': 50.0}
     baseline_result = run_cycle_with_params(baseline_durations, desorption_temperature=cycle.create_fixed_properties()[0]['desorption_temperature'], 
                                     vacuum_pressure=cycle.create_fixed_properties()[0]['vacuum_pressure'], n_cycles=1, verbose=False)
     if baseline_result is None:
@@ -179,16 +185,17 @@ def main():
     # ---- Bounds for (adsorption, blowdown, heating, pressurisation, T_des, P_vac) ----
     bounds = [
         (100.0, 3e4),    # adsorption time [s]
-        (1.0, 600.0),    # blowdown [s]
-        (100.0, 6e4),    # heating [s]
-        (1.0, 600.0),    # pressurisation [s]
+        (1.0, 100.0),    # blowdown [s]
+        (100.0, 1000),    # heating [s]
+        (100.0, 6000.0), # desorption [s]
+        (1.0, 100.0),    # pressurisation [s]
         (323.15, 423.15),# desorption temperature [K]
         (1000.0, 101325.0) # vacuum pressure [Pa]
     ]
 
     print("Starting optimisation (differential evolution). ")
     start_time = time.time()
-    result = differential_evolution(objective_function, bounds, maxiter=8, popsize=6, polish=True, seed=42, workers=1)
+    result = differential_evolution(objective_function, bounds, maxiter=1, popsize=1, polish=True, seed=42, workers=1)
     end_time = time.time()
 
     print("Optimisation complete. Time elapsed: {:.1f} s".format(end_time - start_time))
@@ -197,9 +204,9 @@ def main():
 
     # Decode best solution
     best_params = result.params
-    best_durations = {'adsorption': best_params[0], 'blowdown': best_params[1], 'heating': best_params[2], 'pressurisation': best_params[3]}
-    best_T = best_params[4]
-    best_Pvac = best_params[5]
+    best_durations = {'adsorption': best_params[0], 'blowdown': best_params[1], 'heating': best_params[2], 'desorption': best_params[3], 'pressurisation': best_params[4]}
+    best_T = best_params[5]
+    best_Pvac = best_params[6]
 
     best_sim = run_cycle_with_params(best_durations, desorption_temperature=best_T, vacuum_pressure=best_Pvac, n_cycles=1, verbose=True)
 
