@@ -96,7 +96,7 @@ def create_fixed_properties():
         "pressurisation_time": 50,               # Pressurisation time [s]
 
         # Adsorption isotherms
-        "isotherm_type_1": "Toth",  # CO2 isotherm type
+        "isotherm_type_1": "ModifiedToth",  # CO2 isotherm type
         "isotherm_type_2": "GAB",                # H2O isotherm type
         
         # Reference values for scaling (dimensionless variables)
