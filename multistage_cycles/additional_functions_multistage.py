@@ -619,3 +619,15 @@ def product_mass(F, t_cycle, bed_properties):
     mass_H2O_out = F[5,-1] * bed_properties["MW_2"] / 1000  # kg
 
     return mass_CO2_product, mass_carrier_gas_product, mass_CO2_in, mass_H2O_out
+
+def product_mols(F, t_cycle, bed_properties):
+
+    mol_CO2_product = F[4,-1]  # mol
+
+    mol_carrier_gas_product = (F[5,-1] + F[6,-1] + F[7,-1])  # mol
+
+    mol_CO2_in = F[0,-1] 
+
+    mol_H2O_out = F[5,-1]
+
+    return mol_CO2_product, mol_carrier_gas_product, mol_CO2_in, mol_H2O_out
