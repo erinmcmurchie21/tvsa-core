@@ -169,63 +169,6 @@ def create_fixed_properties():
     
     return bed_properties, column_grid, initial_conditions, rtol, atol_array
 
-
-# ============================================================================
-# PRESSURE PROFILES FOR DIFFERENT STAGES
-# ============================================================================
-
-def pressure_ramp(t, stage, pressure_previous_stage):
-    """
-    Define pressure profiles for different process stages.
-    
-    Args:
-        t (float): Current time [s]
-        stage (str): Process stage name
-        pressure_previous_stage (float): Pressure from previous stage [Pa]
-    
-    Returns:
-        float: Pressure at time t [Pa]
-    """
-    if stage == "adsorption":
-        # Maintain atmospheric pressure during adsorption
-        return bed_properties["ambient_pressure"]
-        
-    elif stage == "blowdown":
-        # Exponential pressure drop from atmospheric to vacuum
-        initial_pressure = pressure_previous_stage
-        final_pressure = bed_properties["vacuum_pressure"]  # Target vacuum pressure [Pa]
-        tau = 1 - 1/np.e       # Time constant
-        return final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
-        
-    elif stage == "heating":
-        # Maintain vacuum pressure during heating
-        initial_pressure = pressure_previous_stage
-        final_pressure = bed_properties["vacuum_pressure"]
-        tau = 2
-        return final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
-    
-    elif stage == "desorption":
-        # Maintain vacuum pressure during desorption
-        initial_pressure = pressure_previous_stage
-        final_pressure = bed_properties["vacuum_pressure"]
-        tau = 2
-        return final_pressure
-        
-    elif stage == "pressurisation":
-        # Rapid pressurization back to atmospheric
-        initial_pressure = pressure_previous_stage
-        final_pressure = bed_properties["ambient_pressure"]  # Slightly above atmospheric [Pa]
-        tau = 0.2               # Fast time constant
-        return final_pressure - (final_pressure - initial_pressure) * np.exp(-t / tau)
-        
-    elif stage == "cooling":
-        # Return to atmospheric pressure
-        initial_pressure = pressure_previous_stage
-        final_pressure = 101325  # Slightly above atmospheric [Pa]
-        tau = 0.2               # Fast time constant
-        return final_pressure  # - (final_pressure - initial_pressure) * np.exp(-t / tau)
-
-
 # ============================================================================
 # BOUNDARY CONDITIONS FOR EACH STAGE
 # ============================================================================
@@ -243,6 +186,46 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     Returns:
         tuple: (left_values, right_values, column_direction, stage)
     """
+    
+    def pressure_ramp(t, stage, pressure_previous_stage):
+        """
+        Define pressure profiles for different process stages.
+        Now uses bed_properties from the enclosing scope.
+        """
+        if stage == "adsorption":
+            return bed_properties["ambient_pressure"]
+            
+        elif stage == "blowdown":
+            initial_pressure = pressure_previous_stage
+            final_pressure = bed_properties["vacuum_pressure"]
+            tau = 1 - 1/np.e
+            return final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
+            
+        elif stage == "heating":
+            initial_pressure = pressure_previous_stage
+            final_pressure = bed_properties["vacuum_pressure"]
+            tau = 2
+            return final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
+        
+        elif stage == "desorption":
+            initial_pressure = pressure_previous_stage
+            final_pressure = bed_properties["vacuum_pressure"]
+            tau = 2
+            return final_pressure
+            
+        elif stage == "pressurisation":
+            initial_pressure = pressure_previous_stage
+            final_pressure = bed_properties["ambient_pressure"]
+            tau = 0.2
+            return final_pressure - (final_pressure - initial_pressure) * np.exp(-t / tau)
+            
+        elif stage == "cooling":
+            initial_pressure = pressure_previous_stage
+            final_pressure = 101325
+            tau = 0.2
+            return final_pressure
+
+    # Rest of the function remains the same...
     # Define flow direction and boundary types for each stage
     stage_config = {
         "adsorption": {"left": "mass_flow", "right": "pressure", "direction": "forwards"},
@@ -256,12 +239,11 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     config = stage_config[stage]
     
     # Standard operating conditions
-    feed_velocity = 50 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"]  # [m/s]
-    feed_temperature = 293.15  # [K]
-    
+    feed_velocity = 50 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"]
+    feed_temperature = 293.15
     
     # Feed composition (CO2 capture from air-like mixture)
-    feed_composition = {"y1": 0.0004, "y2": 0.0115, "y3": 0.98}  # CO2, H2O, N2
+    feed_composition = {"y1": 0.0004, "y2": 0.0115, "y3": 0.98}
     
     # Product composition (high purity CO2)
     product_composition = {"y1": 0.9999, "y2": 1e-6, "y3": 1e-6}
@@ -270,7 +252,7 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     def get_left_velocity():
         if stage in ["adsorption", "cooling"]:
             return feed_velocity
-        return 0  # No flow for closed boundary
+        return 0
 
     def get_left_vol_flow():
         if get_left_velocity() > 0:
@@ -280,13 +262,13 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     def get_left_pressure_func():
         if stage == "pressurisation":
             return lambda t: pressure_ramp(t, "pressurisation", pressure_left)
-        return lambda t: None  # Not used for mass flow boundaries
+        return lambda t: None
     
     left_values = {
         "left_type": config["left"],
         "velocity": get_left_velocity(),
-        "left_volume_flow": get_left_vol_flow(),  # [m³/s]
-        "left_mass_flow": 0.01 * bed_properties["column_area"] * 1.13,  # [kg/s]
+        "left_volume_flow": get_left_vol_flow(),
+        "left_mass_flow": 0.01 * bed_properties["column_area"] * 1.13,
         "left_temperature": feed_temperature,
         "left_pressure": get_left_pressure_func(),
         "y1_left_value": feed_composition["y1"],
@@ -298,7 +280,7 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     def get_right_pressure_func():
         if config["right"] == "pressure":
             return lambda t: pressure_ramp(t, stage, pressure_right)
-        return lambda t: None  # Not used for closed boundaries
+        return lambda t: None
     
     right_values = {
         "right_type": config["right"],
@@ -311,13 +293,12 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
     
     return left_values, right_values, config["direction"], stage
 
-
 # ============================================================================
 # SIMULATION EXECUTION
 # ============================================================================
 
 def run_stage(left_values, right_values, column_direction, stage, t_span, 
-              initial_conditions, solver='BDF'):
+              initial_conditions, cycle_properties, solver='BDF', ):
     """
     Run simulation for a single process stage.
     
@@ -337,6 +318,11 @@ def run_stage(left_values, right_values, column_direction, stage, t_span,
     #P_initial = initial_conditions[0:column_grid["num_cells"]] * bed_properties["P_ref"]
     print(f"Running {stage} stage...")
     
+    bed_properties = cycle_properties['bed_properties']
+    column_grid = cycle_properties['column_grid']
+    rtol = cycle_properties['rtol']
+    atol_array = cycle_properties['atol']
+
     # Pressure at start of stage to 
     P_initial = initial_conditions[0] * bed_properties["P_ref"] 
     # Define ODE function
@@ -444,6 +430,12 @@ def run_cycle(n_cycles):
     Returns:
         tuple: Simulation profiles and cycle errors
     """
+    cycle_properties = {
+        'bed_properties': bed_properties,
+        'column_grid': column_grid,
+        'rtol': rtol,
+        'atol': atol_array,
+    }
     current_initial_conditions = initial_conditions
     all_cycle_errors = []
     
@@ -502,7 +494,7 @@ def run_cycle(n_cycles):
             
             # Run stage simulation
             stage_results = run_stage(left_vals, right_vals, col_dir, stage_name, 
-                                    t_span, stage_conditions)
+                                    t_span, stage_conditions, cycle_properties)
             
             if stage_results[0] is None:  # Check for simulation failure
                 print(f"Simulation failed at {stage_name} stage")
