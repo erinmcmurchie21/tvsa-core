@@ -809,7 +809,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     # =========================================================================
     # WALL ENERGY BALANCE
     # =========================================================================
-    if stage == "heating" or stage == "desorption":
+    if stage == "heating" or stage == "desorption" or stage == "cooling":
         dTwdt = np.zeros(num_cells)
     else:
         # Wall temperature second derivative

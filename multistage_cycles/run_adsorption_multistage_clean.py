@@ -92,6 +92,7 @@ def create_fixed_properties():
         "blowdown_time": 30,                   # Blowdown time [s]
         "heating_time": 704,                  # Heating time [s]
         "desorption_time": 2000,                # Desorption time [s]
+        "cooling_time": 500,                   # Cooling time [s]
         "pressurisation_time": 50,               # Pressurisation time [s]
 
         # Adsorption isotherms
@@ -104,8 +105,8 @@ def create_fixed_properties():
         "n_ref": 3000,      # Reference adsorbed amount [mol/m³]
         
         # Calculated properties
-        "sorbent_mass": 0.286 * 0.00945**2 * np.pi * 55.4,          # [kg]
-        "sorbent_volume": 0.286 * 0.00945**2 * np.pi * (1-0.092),  # [m³]
+        "sorbent_mass": 0.01 * 0.04**2 * np.pi * 55.4,          # [kg]
+        "sorbent_volume": 0.01 * 0.04**2 * np.pi * (1-0.092),  # [m³]
         
         # Efficiencies
         "compressor_efficiency": 0.75,  # Compressor efficiency
@@ -221,7 +222,7 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
             
         elif stage == "cooling":
             initial_pressure = pressure_previous_stage
-            final_pressure = 101325
+            final_pressure = bed_properties["vacuum_pressure"]
             tau = 0.2
             return final_pressure
 
@@ -233,7 +234,7 @@ def define_boundary_conditions(stage, bed_properties, pressure_left, pressure_ri
         "heating": {"left": "closed", "right": "pressure", "direction": "forwards"},
         "desorption": {"left": "closed", "right": "pressure", "direction": "forwards"},
         "pressurisation": {"left": "pressure", "right": "closed", "direction": "forwards"},
-        "cooling": {"left": "mass_flow", "right": "pressure", "direction": "forwards"}
+        "cooling": {"left": "mass_flow", "right": "closed", "direction": "forwards"}
     }
     
     config = stage_config[stage]
@@ -475,8 +476,7 @@ def run_cycle(n_cycles):
             "blowdown": 1,
             "heating": 2,
             "desorption": 3,
-            "pressurisation": 4,
-            "cooling": 5
+            "pressurisation": 4
         }
         
         stage_conditions = current_initial_conditions
@@ -485,7 +485,8 @@ def run_cycle(n_cycles):
             # Special handling for heating stage (increase wall temperature)
             if stage_name == "heating" or stage_name == "desorption":
                 stage_conditions[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = bed_properties["desorption_temperature"]/bed_properties["T_ref"]
-                
+            if stage_name == "cooling":
+                stage_conditions[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = bed_properties["ambient_temperature"]/bed_properties["T_ref"]
 
             # Define boundary conditions
             left_vals, right_vals, col_dir, _ = define_boundary_conditions(
@@ -542,6 +543,7 @@ def run_cycle(n_cycles):
         # Calculate and display performance metrics
         heating_stage_idx = 2  # Index of heating stage
         desorption_stage_idx = 3  # Index of desorption stage
+        cooling_stage_idx = 4  # Index of cooling stage
         cycle_purity = (cycle_profiles['mass_CO2_out'][desorption_stage_idx] /
                        (cycle_profiles['mass_CO2_out'][desorption_stage_idx] +
                         cycle_profiles['mass_carrier_gas_out'][desorption_stage_idx]))
@@ -552,20 +554,20 @@ def run_cycle(n_cycles):
         cycle_purity_dry = cycle_purity / H2O_mass_fraction
         print(f"Cycle purity (dry basis): {cycle_purity_dry:.6f}")
         
-        mass_CO2_out = cycle_profiles['mass_CO2_out'][desorption_stage_idx] # kg
-        CO2_production_rate = mass_CO2_out / cycle_time * 60 * 60 # kg/hr
+        mol_CO2_out = cycle_profiles['mass_CO2_out'][desorption_stage_idx] # kg
+        CO2_production_rate = mol_CO2_out / cycle_time * 60 * 60 # kg/hr
 
-        thermal_energy_consumption = np.sum(cycle_profiles['thermal_energy_input']) + np.sum(cycle_profiles['thermal_energy_input']) # J
-        specific_thermal_energy = thermal_energy_consumption / mass_CO2_out / 1e9 * 1000  # GJ/tCO2
+        thermal_energy_consumption = np.sum(cycle_profiles['thermal_energy_input']) + np.sum(cycle_profiles['thermal_energy_input'])# J
+        specific_thermal_energy = thermal_energy_consumption / mol_CO2_out / 1e9 * 1000  # GJ/tCO2
 
         mechanical_energy = np.sum(cycle_profiles['vacuum_energy_input']) + np.sum(cycle_profiles['fan_energy_input']) # J
-        specific_mechanical_energy = mechanical_energy / mass_CO2_out / 1e9 * 1000  # GJ/tCO2
+        specific_mechanical_energy = mechanical_energy / mol_CO2_out / 1e9 * 1000  # GJ/tCO2
 
         recovery_rate = (cycle_profiles['mass_CO2_out'][desorption_stage_idx] /
                         sum(cycle_profiles['mass_CO2_in']))
         
      
-        productivity = mass_CO2_out / bed_properties["sorbent_mass"] / cycle_time  # kgCO2 / kg_sorbent / s
+        productivity = mol_CO2_out / bed_properties["sorbent_mass"] / cycle_time  # kgCO2 / kg_sorbent / s
         daily_productivity = productivity * 86400 * bed_properties["sorbent_mass"] # kgCO2/day
         daily_productivity /= 1000 # tCO2/day
         bed_size_factor = bed_properties["sorbent_mass"] / daily_productivity
@@ -576,9 +578,9 @@ def run_cycle(n_cycles):
         print(f"  CO2 Production Rate (kg/hr): {CO2_production_rate:.6e}")
         print(f"  Specific Thermal Energy (GJ/tCO2): {specific_thermal_energy:.6f}")
         print(f"  Specific Mechanical Energy (GJ/tCO2): {specific_mechanical_energy:.6f}")
-        print("Other Metrics:")
-        print(f"  Daily Productivity (tCO2/day): {daily_productivity:.6e}")
-        print(f"  Bed Size Factor: {bed_size_factor:.2e}")
+        #print("Other Metrics:")
+        #print(f"  Daily Productivity (tCO2/day): {daily_productivity:.6e}")
+        #print(f"  Bed Size Factor: {bed_size_factor:.2e}")
         print(f"  Cycle Error: {cycle_error_value}")
         
 
