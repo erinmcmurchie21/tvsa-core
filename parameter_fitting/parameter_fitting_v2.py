@@ -62,7 +62,7 @@ class ParameterFitter:
             disp=True,
             init='sobol',
             polish=True,
-            workers=1,  # Enable parallel processing
+            workers=16,  # Enable parallel processing
             updating= 'immediate'  # Required for parallel processing
         )
 

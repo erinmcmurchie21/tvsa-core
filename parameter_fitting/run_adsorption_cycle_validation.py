@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import tvsa_adsorption_column_validation as column
 
 """This script sets up the initial conditions and parameters for an adsorption column model simulation.
-It defines the column grid, bed properties, inlet and outlet conditions, and initializes the state variables for the simulation.
+It defines the column grid, bed properties, left and right conditions, and initializes the state variables for the simulation.
 The components are (1) CO2, (2) H2O, (3) N2 and (4) O2."""
 
 
@@ -90,10 +90,10 @@ def create_fixed_properties():
 
     return bed_properties, column_grid, initial_conditions, rtol, atol_array
 
-# Define bed inlet values (subject to variation)
+# Define bed left values (subject to variation)
 def define_boundary_conditions(bed_properties):
-    inlet_values = {
-        "inlet_type": "mass_flow",
+    left_values = {
+        "left_type": "mass_flow",
         "velocity": 100 / 60 / 1e6 / bed_properties["column_area"] / bed_properties["bed_voidage"],  # Example value for interstitial velocity in m/s
         "rho_gas": 1.13,  # Example value for feed density in kg/m^3
         "feed_volume_flow": 1.6667e-6,  # cm³/min to m³/s
@@ -104,15 +104,15 @@ def define_boundary_conditions(bed_properties):
         "y2_feed_value": 1e-6,  # Example value for feed mole fraction
         "y3_feed_value": 1e-6,  # Example value for feed mole fraction
     }
-        # Define bed outlet values (subject to variation)
-    outlet_values = {
-        "outlet_type": "pressure",
-        "outlet_pressure": 101325,  # Example value for outlet pressure in Pa
-        "outlet_temperature": 293.15,  # Example value for outlet temperature in Kelvin
+        # Define bed right values (subject to variation)
+    right_values = {
+        "right_type": "pressure",
+        "right_pressure": 101325,  # Example value for right pressure in Pa
+        "right_temperature": 293.15,  # Example value for right temperature in Kelvin
         }
     
     column_direction = "forwards"
-    return inlet_values, outlet_values, column_direction
+    return left_values, right_values, column_direction
 
 
 # Running simulation! ======================================================================================================
@@ -130,12 +130,12 @@ E_result = []
 
 # Implement solver
 bed_properties, column_grid, initial_conditions, rtol, atol_array = create_fixed_properties()
-inlet_values, outlet_values, column_direction = define_boundary_conditions(bed_properties)
+left_values, right_values, column_direction = define_boundary_conditions(bed_properties)
 t_span = [0, 3000]  # Time span for the ODE solver
 
 t0=time.time()
 def ODE_func(t, results_vector,):
-    return column.ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=bed_properties, inlet_values=inlet_values, outlet_values=outlet_values, column_direction=column_direction)
+    return column.ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=bed_properties, left_values=left_values, right_values=right_values, column_direction=column_direction)
 output_matrix = solve_ivp(ODE_func, t_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array)
 t1=time.time()
 total_time = t1 - t0
@@ -162,7 +162,7 @@ print("Duration of simulation:", time[-1], "seconds")
 # Calculate the exit column values
 (P_walls_result, T_walls_result, Tw_walls_result,
  y1_walls_result, y2_walls_result, y3_walls_result,
- v_walls_result) = column.final_wall_values(column_grid, bed_properties, inlet_values, outlet_values, output_matrix)
+ v_walls_result) = column.final_wall_values(column_grid, bed_properties, left_values, right_values, output_matrix)
 
 # Create the combined plot
 #create_combined_plot(time, T_result, P_result, y1_result, n1_result, y1_walls_result, v_walls_result, bed_properties)
