@@ -15,7 +15,7 @@ def create_non_uniform_grid(bed_properties):
     Returns:
         column_grid (dict): grid properties including xCentres, xWalls, deltaZ, etc.
     """
-    nx = 31          # Number of physical cells
+    nx = 31         # Number of physical cells
     nGhost = 1       # Number of ghost cells on each end
     xmin, xmax = 0, bed_properties["bed_length"]  # Column length from bed properties
 
@@ -204,7 +204,7 @@ def build_jacobian(num_cells):
 # 3. ISOTHERM EQUILIBRIA
 # ============================================================
 
-def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1="Toth"):
+def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1="WADST"):
     """
     Toth isotherm for CO₂ on solid sorbent.
 
@@ -229,11 +229,11 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, n2, bed_propert
 
     elif isotherm_type_1 == "ModifiedToth":
         T_0 = 296           # Reference temperature (K)
-        n2_mass = n2 / (bed_density / (1 - ε)) # mol/kg
-        gamma = 0.0061 # kg/mol
-        beta = 28.907 # kg/mol
+        n2_mass = adsorption_isotherm_2(pressure, temperature, y2, bed_properties, isotherm_type="GAB")[0] / (bed_density / (1 - ε)) # mol/kg
+        gamma = 0.0016 # kg/mol
+        beta = 59.1 # kg/mol
         n_s = 2.38 * np.exp(0 * (1 - temperature / T_0)) * (1 / (1 - gamma * n2_mass))      # mol/kg
-        b = 70.74 * np.exp(-1*(-57047) / (R * T_0) * (1-T_0 / temperature)) * (1 + beta * n2_mass) # kPa⁻¹
+        b = 70.74 * np.exp((57047) / (R * T_0) * (T_0 / temperature - 1)) * (1 + beta * n2_mass) # kPa⁻¹
         t = 0.4148 - 1.606 * (1 - T_0 / temperature)
         
         pressure_kPa = pressure / 1000  # Convert pressure from Pa to kPa
@@ -267,7 +267,7 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, n2, bed_propert
 
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
         ΔH = R * (-3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"])/bed_density) # J/mol
-    
+
     return load_m3, ΔH
 
 def adsorption_isotherm_2(pressure, temperature, y2, bed_properties, isotherm_type="GAB"):
@@ -287,9 +287,8 @@ def adsorption_isotherm_2(pressure, temperature, y2, bed_properties, isotherm_ty
         c_m = 36.48 # mol/kg
         c_G = 0.1489 # -
 
-        P_sat = 10**(8.07131-1730.63/(233.426+(temperature-273.15)))  # Pressure in mmHg, Antoine equation for water, Ward et al. 2024
-        P_sat_Pa = P_sat * 133.322  # Convert mmHg to Pa
-        RH = y2 * pressure / (P_sat_Pa)  # dimensionless
+        P_sat = 611.21 * np.exp((18.678 - ((temperature -273.15)/ 234.5))*(temperature-273.15)/(temperature - 16.01))  # Tetens equation for water, Pa
+        RH = y2 * pressure / (P_sat)  # dimensionless
 
         load_kg = c_m * c_G * K_ads * RH / ((1 - K_ads * RH) * (1 + (c_G - 1) * K_ads * RH))  # mol/kg
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
@@ -304,9 +303,75 @@ def adsorption_isotherm_2(pressure, temperature, y2, bed_properties, isotherm_ty
 # ============================================================
 # 4. PHYSICAL PROPERTY MODELS
 # ============================================================
+def pressure_ramp(t, stage, pressure_previous_stage, bed_properties):
+        """
+        Define pressure profiles for different process stages.
+        Now uses bed_properties from the enclosing scope.
+        """
+        if stage == "adsorption":
+            return bed_properties["ambient_pressure"]
+            
+        elif stage == "blowdown":
+            initial_pressure = pressure_previous_stage
+            final_pressure = bed_properties["vacuum_pressure"]
+            tau = 0.11
+            return final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
+            
+        elif stage == "heating":
+            initial_pressure = pressure_previous_stage
+            final_pressure = bed_properties["vacuum_pressure"]
+            tau = 0.11
+            return final_pressure + (initial_pressure - final_pressure) * np.exp(-t / tau)
+        
+        elif stage == "desorption":
+            initial_pressure = pressure_previous_stage
+            final_pressure = bed_properties["vacuum_pressure"]
+            tau = 0.11
+            return final_pressure
+            
+        elif stage == "pressurisation":
+            initial_pressure = pressure_previous_stage
+            final_pressure = bed_properties["ambient_pressure"]
+            tau = 10
+            return final_pressure - (final_pressure - initial_pressure) * np.exp(-t / tau)
+            
+        elif stage == "cooling":
+            initial_pressure = pressure_previous_stage
+            final_pressure = bed_properties["vacuum_pressure"]
+            tau = 0.11
+            return final_pressure  
+            
+def pressure_ramp_2(t, stage, pressure_previous_step, bed_properties):
+        tau = 0.11
+        ambient_pressure = bed_properties["ambient_pressure"]
+        vacuum_pressure = bed_properties["vacuum_pressure"]
+        P = None
+        dPdz = None
+        if stage == "adsorption":
+            P = ambient_pressure
+            dPdz = None
+        elif stage == "blowdown":
+            P = None
+            dPdz = tau * (vacuum_pressure - pressure_previous_step)
+        elif stage == "heating" or stage == "desorption":
+            P = vacuum_pressure
+            dPdz = None
+        elif stage == "pressurisation":
+            P = None
+            dPdz = - tau * (ambient_pressure - pressure_previous_step)
+        return P, dPdz
 
-def calculate_gas_heat_capacity():
-    return 840 * 44.01 / 1000  # J/mol·K (approx. for air/CO2)
+def calculate_gas_heat_capacity(y1, y2, y3, T):
+    params_N2 = {'A': 0.0000106569, 'B': -0.0064057779, 'C': 30.1318,}
+    params_H2O = {'A': 0.00172619108 , 'B': -1.229711840269, 'C': 250.9868,}
+    params_CO2 = {'A': -0.0000323753 , 'B': 0.0617517420 , 'C': 37.4151,}
+    params_O2 = {'A': 0.00000908259 , 'B': 0.00100528795 , 'C': 28.3,}
+    Cp_N2 = params_N2['A'] * T**2 + params_N2['B'] * T + params_N2['C']  # J/(mol·K)
+    Cp_H2O = params_H2O['A'] * T**2 + params_H2O['B'] * T + params_H2O['C']  # J/(mol·K)
+    Cp_CO2 = params_CO2['A'] * T**2 + params_CO2['B'] * T + params_CO2['C']  # J/(mol·K)
+    Cp_O2 = params_O2['A'] * T**2 + params_O2['B'] * T + params_O2['C']  # J/(mol·K)
+    Cp_gas = y1 * Cp_CO2 + y2 * Cp_H2O + y3 * Cp_N2 + (1 - y1 - y2 - y3) * Cp_O2
+    return Cp_gas  # J/(mol·K)
 
 def heat_transfer_coefficient():
     return 140, 20  # W/m²·K (bed, wall)
@@ -331,10 +396,16 @@ def calculate_gas_density(P, T):
     return P / (R * T)  # mol/m³
 
 def relative_humidity_to_mole_fraction(RH, P, T):
-    P_sat = 10**(8.07131-1730.63/(233.426+(T-273.15)))  # Pressure in mmHg, Antoine equation for water, Ward et al. 2024
-    P_sat_Pa = P_sat * 133.322  # Convert mmHg to Pa
-    y2 = RH * P_sat_Pa / P
+    P_sat = 611.21 * np.exp((18.678 - ((T -273.15)/ 234.5))*(T-273.15)/(T - 16.01))  # Tetens equation for water, Pa
+    print("P_sat:", P_sat)
+    y2 = RH * P_sat / P
+    print("y2:", y2)
     return y2
+
+def mole_fraction_to_relative_humidity(y2, P, T):
+    P_sat = 611.21 * np.exp((18.678 - ((T -273.15)/ 234.5))*(T-273.15)/(T - 16.01))  # Tetens equation for water, Pa
+    RH = y2 * P / P_sat
+    return RH
 
 # ============================================================
 # 5. BALANCE ERROR FUNCTIONS
@@ -513,7 +584,7 @@ def create_combined_plot(time, T_result, P_result, y1_result, n1_result, y1_wall
     plt.tight_layout()
     plt.show()
 
-def create_multi_plot(data, bed_properties):
+def create_multi_plot(profiles, bed_properties):
     """
     Create a grid of subplots for multiple time series.
 
@@ -526,23 +597,43 @@ def create_multi_plot(data, bed_properties):
     figsize : tuple, optional
         Size of the whole figure
     """
-    (temperature_profile, outlet_CO2_profile, outlet_H2O_profile, time_profile, 
-     pressure_profile_inlet, pressure_profile_outlet, adsorbed_CO2_profile, 
-     adsorbed_H2O_profile, wall_temperature_profile, all_cycle_errors) = data
+    # Import data
+
     
+    time_SB = np.loadtxt('multistage_cycles/stampi-bombelli_profiles/stampi-bombelli_qCO2.csv', delimiter=',', usecols=0)  # First column
+    qCO2_SB= np.loadtxt('multistage_cycles/stampi-bombelli_profiles/stampi-bombelli_qCO2.csv', delimiter=',', usecols=1)  # Second column
+
+    #time_SB2 = np.loadtxt('multistage_cycles/stampi-bombelli_profiles/stampi-bombelli_yCO2.csv', delimiter=',', usecols=0)  # First column
+    #yCO2_SB = np.loadtxt('multistage_cycles/stampi-bombelli_profiles/stampi-bombelli_yCO2.csv', delimiter=',', usecols=1)  # Second column
+
+    time_SB3 = np.loadtxt('multistage_cycles/stampi-bombelli_profiles/stampi-bombelli_qH2O.csv', delimiter=',', usecols=0)  # First column
+    qH2O_SB = np.loadtxt('multistage_cycles/stampi-bombelli_profiles/stampi-bombelli_qH2O.csv', delimiter=',', usecols=1)  # Second column
+
+    time_SB4 = np.loadtxt('multistage_cycles/stampi-bombelli_profiles/stampi-bombelli_temp.csv', delimiter=',', usecols=0)  # First column
+    temp_SB = np.loadtxt('multistage_cycles/stampi-bombelli_profiles/stampi-bombelli_temp.csv', delimiter=',', usecols=1)+273.15  # Second column
+
+    time_SB5 = np.loadtxt('multistage_cycles/stampi-bombelli_profiles/stampi-bombelli_RH.csv', delimiter=',', usecols=0)  # First column
+    RH_SB = np.loadtxt('multistage_cycles/stampi-bombelli_profiles/stampi-bombelli_RH.csv', delimiter=',', usecols=1)  # Second column
+
+
+    time = profiles["time"]
+    T_gas = np.array(profiles["temperature"])
+    T_wall = np.array(profiles["wall_temperature"])
+    P_inlet = np.array(profiles["pressure_inlet"])
+    P_outlet = np.array(profiles["pressure_outlet"])
+    outlet_CO2 = np.array(profiles["outlet_CO2"])
+    outlet_H2O = np.array(profiles["outlet_H2O"])
+    adsorbed_CO2 = np.array(profiles["adsorbed_CO2"])
+    adsorbed_H2O = np.array(profiles["adsorbed_H2O"])   
+    outlet_N2 = np.array(profiles["outlet_N2"])
+    outlet_O2 = np.array(profiles["outlet_O2"]) 
+
     bed_density = bed_properties["bed_density"]
     bed_voidage = bed_properties["bed_voidage"]
     
-    
-    time = time_profile
-    T_gas = temperature_profile
-    T_wall = wall_temperature_profile
-    P_inlet = pressure_profile_inlet
-    P_outlet = pressure_profile_outlet
-    outlet_CO2 = outlet_CO2_profile
-    outlet_H2O = outlet_H2O_profile
-    adsorbed_CO2 = np.array(adsorbed_CO2_profile) / (bed_density / (1 - bed_voidage))
-    adsorbed_H2O = np.array(adsorbed_H2O_profile) / (bed_density / (1 - bed_voidage))
+    adsorbed_CO2 = np.array(adsorbed_CO2) / (bed_density / (1 - bed_voidage))
+    adsorbed_H2O = np.array(adsorbed_H2O) / (bed_density / (1 - bed_voidage))
+    relative_humidity = mole_fraction_to_relative_humidity(outlet_H2O, P_outlet, T_gas)
 
     figsize=(15, 8)
     fig, axes = plt.subplots(2, 3, figsize=figsize)
@@ -552,6 +643,7 @@ def create_multi_plot(data, bed_properties):
     ax = axes[0]
     ax.plot(time, T_gas, label="Gas Temp (mid)", color="tab:blue")
     ax.plot(time, T_wall, label="Wall Temp (mid)", color="tab:orange")
+    ax.plot(time_SB4, temp_SB, label="WADST (Young et al.)", color="black", linestyle="--", alpha=0.7)
     ax.set_title("Temperature Profiles")
     ax.set_ylabel("Temperature (K)")
     ax.legend()
@@ -569,6 +661,7 @@ def create_multi_plot(data, bed_properties):
     # 3. CO2 gas phase (outlet and mid)
     ax = axes[2]
     ax.plot(time, outlet_CO2, label="CO2 Outlet", color="tab:purple")
+    #ax.plot(time_SB2, yCO2_SB, label="WADST (Young et al.)", color="black", linestyle="--", alpha=0.7)
     ax.set_title("CO2 Gas Phase")
     ax.set_ylabel("CO2 Mole Fraction")
     ax.legend()
@@ -577,24 +670,30 @@ def create_multi_plot(data, bed_properties):
     # 4. CO2 adsorbed
     ax = axes[3]
     ax.plot(time, adsorbed_CO2, label="CO2 Adsorbed (mid)", color="tab:blue")
+    ax.plot(time_SB, qCO2_SB, label="WADST (Young et al.)", color="black", linestyle="--", alpha=0.7)
     ax.set_title("CO2 Adsorbed")
-    ax.set_ylabel("CO2 Loading (mol/m³)")
+    ax.set_ylabel("CO2 Loading (mol/kg)")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
-    # 5. H2O gas phase (outlet and mid)
+    # 5. Relative Humidity
     ax = axes[4]
-    ax.plot(time, outlet_H2O, label="H2O Outlet", color="tab:purple")
-    ax.set_title("H2O Gas Phase")
-    ax.set_ylabel("H2O Mole Fraction")
+    #x.plot(time, outlet_H2O, label="H2O Outlet", color="tab:purple")
+    #ax.plot(time, outlet_N2, label="N2 Outlet", color="tab:green")
+    #ax.plot(time, outlet_O2, label="O2 Outlet", color="tab:orange")
+    ax.plot(time, relative_humidity, label="Relative Humidity", color="tab:purple")
+    ax.plot(time_SB5, RH_SB, label="WADST (Young et al.)", color="black", linestyle="--", alpha=0.7)
+    ax.set_title("Relative Humidity")
+    ax.set_ylabel("Relative Humidity")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
     # 6. H2O adsorbed
     ax = axes[5]
     ax.plot(time, adsorbed_H2O, label="H2O Adsorbed (mid)", color="tab:blue")
+    ax.plot(time_SB3, qH2O_SB, label="WADST (Young et al.)", color="black", linestyle="--", alpha=0.7)
     ax.set_title("H2O Adsorbed")
-    ax.set_ylabel("H2O Loading (mol/m³)")
+    ax.set_ylabel("H2O Loading (mol/kg)")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
@@ -630,4 +729,6 @@ def product_mols(F, t_cycle, bed_properties):
 
     mol_H2O_out = F[5,-1]
 
-    return mol_CO2_product, mol_carrier_gas_product, mol_CO2_in, mol_H2O_out
+    total_mols = np.sum(F[:, -1])
+
+    return mol_CO2_product, mol_carrier_gas_product, mol_CO2_in, mol_H2O_out, total_mols
