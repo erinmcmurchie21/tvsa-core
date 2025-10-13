@@ -233,7 +233,7 @@ def adsorption_isotherm_1(pressure, temperature, y1, y2, y3, n1, n2, bed_propert
         gamma = 0.0016 # kg/mol
         beta = 59.1 # kg/mol
         n_s = 2.38 * np.exp(0 * (1 - temperature / T_0)) * (1 / (1 - gamma * n2_mass))      # mol/kg
-        b = 70.74 * np.exp((57047) / (R * T_0) * (T_0 / temperature - 1)) * (1 + beta * n2_mass) # kPa⁻¹
+        b = 70.74 * np.exp((-57047) / (R * T_0) * (T_0 / temperature - 1)) * (1 + beta * n2_mass) # kPa⁻¹
         t = 0.4148 - 1.606 * (1 - T_0 / temperature)
         
         pressure_kPa = pressure / 1000  # Convert pressure from Pa to kPa
@@ -353,7 +353,7 @@ def pressure_ramp_2(t, stage, pressure_previous_step, bed_properties):
         elif stage == "blowdown":
             P = None
             dPdz = tau * (vacuum_pressure - pressure_previous_step)
-        elif stage == "heating" or stage == "desorption":
+        elif stage == "heating" or stage == "desorption" or stage == "steam_desorption":
             P = vacuum_pressure
             dPdz = None
         elif stage == "pressurisation":
@@ -373,14 +373,11 @@ def calculate_gas_heat_capacity(y1, y2, y3, T):
     Cp_gas = y1 * Cp_CO2 + y2 * Cp_H2O + y3 * Cp_N2 + (1 - y1 - y2 - y3) * Cp_O2
     return Cp_gas  # J/(mol·K)
 
-def heat_transfer_coefficient():
-    return 140, 20  # W/m²·K (bed, wall)
-
 def calculate_gas_viscosity():
     return 1.8e-5  # Pa·s
 
 def calculate_gas_thermal_conductivity():
-    return 1  # W/(m·K)
+    return 0.1  # W/(m·K)
 
 def calculate_wall_thermal_conductivity():
     return 205  # W/(m·K)
@@ -626,7 +623,8 @@ def create_multi_plot(profiles, bed_properties):
     adsorbed_CO2 = np.array(profiles["adsorbed_CO2"])
     adsorbed_H2O = np.array(profiles["adsorbed_H2O"])   
     outlet_N2 = np.array(profiles["outlet_N2"])
-    outlet_O2 = np.array(profiles["outlet_O2"]) 
+    outlet_O2 = np.array(profiles["outlet_O2"])
+    equilibrium_CO2 = np.array(profiles["equilibrium_CO2"])
 
     bed_density = bed_properties["bed_density"]
     bed_voidage = bed_properties["bed_voidage"]
@@ -670,7 +668,8 @@ def create_multi_plot(profiles, bed_properties):
     # 4. CO2 adsorbed
     ax = axes[3]
     ax.plot(time, adsorbed_CO2, label="CO2 Adsorbed (mid)", color="tab:blue")
-    ax.plot(time_SB, qCO2_SB, label="WADST (Young et al.)", color="black", linestyle="--", alpha=0.7)
+    ax.plot(time_SB, qCO2_SB, label="Stampi-Bombelli", color="black", linestyle="--", alpha=0.7)
+    #ax.plot(time, equilibrium_CO2, label="CO2 Equilibrium (mid)", color="tab:orange", linestyle="--")
     ax.set_title("CO2 Adsorbed")
     ax.set_ylabel("CO2 Loading (mol/kg)")
     ax.legend()
@@ -696,6 +695,28 @@ def create_multi_plot(profiles, bed_properties):
     ax.set_ylabel("H2O Loading (mol/kg)")
     ax.legend()
     ax.grid(True, alpha=0.3)
+
+    # Remove gridlines
+    for ax in axes:
+        ax.grid(False)
+
+        # Add dashed vertical lines for stage transitions
+    # Define stage durations (must match your run_cycle stages)
+    stage_durations = [
+        bed_properties["adsorption_time"],
+        bed_properties["blowdown_time"],
+        bed_properties["heating_time"],
+        bed_properties["desorption_time"],
+        bed_properties["pressurisation_time"],
+        # Add cooling time if used
+    ]
+    stage_start_times = [0]
+    for dur in stage_durations[:-1]:
+        stage_start_times.append(stage_start_times[-1] + dur)
+
+    for ax in axes:
+        for t in stage_start_times:
+            ax.axvline(x=t, color='#cccccc', linestyle='--', alpha=0.2)
 
     for ax in axes:
         ax.set_xlabel("Time (s)")

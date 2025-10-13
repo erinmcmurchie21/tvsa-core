@@ -143,7 +143,7 @@ def calculate_cycle_kpis(cycle_number: int, stage_kpis_dict: Dict[str, StageKPIs
     MW_CO2 = bed_properties.get('MW_1', 44.01)  # g/mol
 
     # Product is from desorption stage
-    desorption_stage = stage_kpis_dict.get('desorption', None)
+    desorption_stage = stage_kpis_dict.get('steam_desorption', None)
     if desorption_stage:
         total_CO2_captured = desorption_stage.CO2_out
     kg_CO2_captured = total_CO2_captured * MW_CO2 / 1000
@@ -191,11 +191,16 @@ def calculate_cycle_kpis(cycle_number: int, stage_kpis_dict: Dict[str, StageKPIs
             stage = stage_kpis_dict[stage_name]
             total_fan_energy = stage.fan_work_done
             W_fan = stage.fan_work_done / total_CO2_captured  # J/mol
-    for stage_name in ['cooling', 'blowdown', 'pressurisation', 'desorption']:
+    for stage_name in ['cooling', 'blowdown', 'pressurisation', 'desorption', 'steam_desorption']:
         if stage_name in stage_kpis_dict:
             stage = stage_kpis_dict[stage_name]
             total_vacuum_energy = stage.vacuum_work_done
             W_vacuum = stage.vacuum_work_done / total_CO2_captured  # J/mol
+    for stage_name in ['steam_desorption']:
+        if stage_name in stage_kpis_dict:
+            stage = stage_kpis_dict[stage_name]
+            total_heating_energy += stage.heat_supplied  # J
+            Q_thermal += stage.heat_supplied / total_CO2_captured  # J/mol
     
     # Specific energy (MJ / kg CO2 captured)
 
@@ -259,7 +264,7 @@ def print_cycle_kpis(cycle_kpis: CycleKPIs):
     print(f"Purity (dry):       {cycle_kpis.purity_dry*100:6.2f}%")
     print(f"Recovery:            {cycle_kpis.recovery*100:6.2f}%")
     print(f"Productivity:        {cycle_kpis.productivity:10.4f} molCO2/m³/s")
-    print(f"CO2 Production Rate: {cycle_kpis.CO2_production_rate:10.4f} kgCO2/hr")
+    print(f"CO2 Production Rate: {cycle_kpis.CO2_production_rate:10.4e} kgCO2/hr")
     
     print("\nENERGY METRICS")
     print(f"{'─'*60}")

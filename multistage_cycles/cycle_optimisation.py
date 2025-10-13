@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 import additional_functions_multistage as funcs
 import tvsa_adsorption_column_multistage as column
-import run_adsorption_multistage_clean as cycle
+import run_adsorption_multistage_Adam as cycle
 import time
 import os
 import json

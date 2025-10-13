@@ -112,9 +112,10 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
         rho_gas_left = func.calculate_gas_density(P[0], T[0])  # [mol/m³]
         mu = func.calculate_gas_viscosity()    
         v_left = left_values["velocity"]                 # [m/s]
-        D_l = func.calculate_axial_dispersion_coefficient(bed_properties, v_left)  # [m²/s]                     
+        D_l = func.calculate_axial_dispersion_coefficient(bed_properties, v_left)  # [m²/s] 
+        K_z = bed_properties["K_z"]                    
         Cp_g = func.calculate_gas_heat_capacity(y1[0], y2[0], y3[0], T[0])               # [J/mol·K]
-        thermal_diffusivity = func.calculate_gas_thermal_conductivity() / (Cp_g * rho_gas_left)  # [m²/s]
+        thermal_diffusivity = K_z / (Cp_g * rho_gas_left)  # [m²/s]
 
         # Calculate inlet mole fractions using convective boundary conditions
         # Boundary condition: dy/dz = -(v/D_l)(y_feed - y_inlet)
@@ -215,8 +216,9 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
         # Calculate outlet velocity from Ergun equation
         mu = func.calculate_gas_viscosity()
         rho_gas_left = P_left / bed_properties["R"] / T_left  # [mol/m³]
-        Cp_g = func.calculate_gas_heat_capacity(y1_left, y2_left, y3_left, T_left)               # [J/mol·K]
-        thermal_diffusivity = func.calculate_gas_thermal_conductivity() / (Cp_g * rho_gas_left)
+        Cp_g = func.calculate_gas_heat_capacity(y1_left, y2_left, y3_left, T_left) 
+        K_z = bed_properties["K_z"]               # [J/mol·K]
+        thermal_diffusivity = K_z / (Cp_g * rho_gas_left)
         Pe_h = bed_properties["bed_voidage"] / thermal_diffusivity
         # Convert to mass density [kg/m³]
         avg_density_left = rho_gas_left / 1000 * (
@@ -254,8 +256,9 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
         # Calculate properties
         mu = func.calculate_gas_viscosity()        
         rho_gas_left = P_left / bed_properties["R"] / T[0] # [mol/m³]
-        Cp_g = func.calculate_gas_heat_capacity(y1[0], y2[0], y3[0], T[0])               # [J/mol·K]
-        thermal_diffusivity = func.calculate_gas_thermal_conductivity() / (Cp_g * rho_gas_left)
+        Cp_g = func.calculate_gas_heat_capacity(y1[0], y2[0], y3[0], T[0])   
+        K_z = bed_properties["K_z"]             # [J/mol·K]
+        thermal_diffusivity = K_z / (Cp_g * rho_gas_left)
         Pe_h = bed_properties["bed_voidage"] / thermal_diffusivity
         
         # Convert to mass density [kg/m³]
@@ -877,22 +880,22 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     # =========================================================================
     # WALL ENERGY BALANCE
     # =========================================================================
-    if stage == "heating" or stage == "desorption" or stage == "cooling" or stage == "pressurisation" or stage == 'adsorption'  or stage == 'blowdown':
-        dTwdt = np.zeros(num_cells)
-    else:
+    
+    
         # Wall temperature second derivative
-        d2Twdt2 = (1 / column_grid["deltaZ"][1:-1] * 
-                (dTwdz_walls[1:num_cells+1] - dTwdz_walls[:num_cells]))
-        
-        wall_conduction = K_wall * d2Twdt2
-        bed_heat_exchange = (2 * bed_properties["inner_bed_radius"] * h_bed * (T - Tw) / 
-                            (bed_properties["outer_bed_radius"]**2 - bed_properties["inner_bed_radius"]**2))
-        ambient_heat_loss = (-2 * bed_properties["outer_bed_radius"] * h_wall * 
-                            (Tw - bed_properties["ambient_temperature"]) / 
-                            (bed_properties["outer_bed_radius"]**2 - bed_properties["inner_bed_radius"]**2))
-        
-        dTwdt = (1 / (bed_properties["wall_heat_capacity"] * bed_properties["wall_density"]) * 
-                (wall_conduction + bed_heat_exchange + ambient_heat_loss))
+    d2Twdt2 = (1 / column_grid["deltaZ"][1:-1] * 
+            (dTwdz_walls[1:num_cells+1] - dTwdz_walls[:num_cells]))
+    
+    wall_conduction = K_wall * d2Twdt2
+    bed_heat_exchange = (2 * bed_properties["inner_bed_radius"] * h_bed * (T - Tw) / 
+                        (bed_properties["outer_bed_radius"]**2 - bed_properties["inner_bed_radius"]**2))
+    ambient_heat_loss = (-2 * bed_properties["outer_bed_radius"] * h_wall * 
+                        (Tw - bed_properties["ambient_temperature"]) / 
+                        (bed_properties["outer_bed_radius"]**2 - bed_properties["inner_bed_radius"]**2))
+    
+    dTwdt = (1 / (bed_properties["wall_heat_capacity"] * bed_properties["wall_density"]) * 
+            (wall_conduction + bed_heat_exchange + ambient_heat_loss))
+    dTwdt = np.zeros(num_cells)
     
     #"""\frac{\partial T_w}{\partial t} =
     #\frac{1}{\rho_w \ C_{p,wall}} \left(\frac{K_{wall}}{\Delta z}\left(\frac{\partial T_w}{\partial z}|_{i+1/2} - \frac{\partial T_w}{\partial z}|_{i-1/2}\right) 
@@ -970,7 +973,7 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
     dE2dt = (bed_properties["bed_voidage"] * bed_properties["inner_bed_radius"]**2 * np.pi * Cp_g[-1] * v_walls[-1] * T_walls[-1] * P_walls[-1] / (bed_properties["R"] * T_walls[-1]))
     dE3dt = np.sum(2 * np.pi * bed_properties["outer_bed_radius"] * h_wall * (Tw - bed_properties["ambient_temperature"]) * column_grid["deltaZ"][1:-1])
     dE4dt = -1 * np.sum(2 / bed_properties["inner_bed_radius"] * h_bed * (T - Tw) * column_grid["deltaZ"][1:-1]) * np.pi * bed_properties["inner_bed_radius"]**2 # Thermal energy (J/s)
-    dE5dt = -1 * ((dF5dt + dF6dt + dF7dt + dF8dt) / bed_properties["compressor_efficiency"] * (bed_properties["k"]/(1-bed_properties["k"])) 
+    dE5dt = -1 * ((dF5dt + dF7dt + dF8dt) / bed_properties["compressor_efficiency"] * (bed_properties["k"]/(1-bed_properties["k"])) 
              * bed_properties["R"] * T_walls[-1] * ((bed_properties["ambient_pressure"]/P_walls[-1])**((bed_properties["k"] - 1) / (bed_properties["k"]))-1)) # Compressor work (J/s)
     dE6dt = -1 *((dF1dt + dF2dt + dF3dt + dF4dt) / bed_properties["fan_efficiency"] * (bed_properties["k"]/(1-bed_properties["k"])) 
              * bed_properties["R"] * T_walls[0] * ((P_walls[0]/bed_properties["ambient_pressure"])**((bed_properties["k"] - 1) / (bed_properties["k"]))-1)) # Fan work (J/s)
