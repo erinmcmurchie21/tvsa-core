@@ -404,6 +404,32 @@ def mole_fraction_to_relative_humidity(y2, P, T):
     RH = y2 * P / P_sat
     return RH
 
+def H2O_boiling_point(P):
+    """
+    Calculate the boiling point of water at a given pressure using the Antoine equation.
+    
+    Args:
+        P (float or np.ndarray): Pressure in Pa.
+        
+    Returns:
+        T_boil (float or np.ndarray): Boiling point temperature in K.
+    """
+    # Antoine equation parameters for water
+    A = 8.07131
+    B = 1730.63
+    C = 233.426
+    
+    # Convert pressure from Pa to mmHg
+    P_mmHg = P / 133.322
+    
+    # Calculate boiling point in Celsius
+    T_boil_C = B / (A - np.log10(P_mmHg)) - C
+    
+    # Convert to Kelvin
+    T_boil_K = T_boil_C + 273.15
+    
+    return T_boil_K
+
 # ============================================================
 # 5. BALANCE ERROR FUNCTIONS
 # ============================================================

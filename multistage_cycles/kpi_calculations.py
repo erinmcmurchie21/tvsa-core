@@ -20,6 +20,7 @@ class StageKPIs:
     heat_supplied: float  # J
     vacuum_work_done: float  # J
     fan_work_done: float  # J
+    steam_supplied: float  # J
     simulation_time: float  # seconds
 
 @dataclass
@@ -99,6 +100,7 @@ def calculate_stage_kpis(stage_name: str, F_result: np.ndarray, time_array: np.n
     heat_supplied = E_result[3, -1]
     vacuum_work_done = E_result[4, -1]
     fan_work_done = E_result[5, -1]
+    steam_supplied = E_result[6, -1]
     simulation_time = simulation_time
 
     return StageKPIs(
@@ -113,6 +115,7 @@ def calculate_stage_kpis(stage_name: str, F_result: np.ndarray, time_array: np.n
         heat_supplied=heat_supplied,
         fan_work_done=fan_work_done,
         vacuum_work_done=vacuum_work_done,
+        steam_supplied=steam_supplied,
         simulation_time=simulation_time
     )
 
@@ -152,7 +155,7 @@ def calculate_cycle_kpis(cycle_number: int, stage_kpis_dict: Dict[str, StageKPIs
     if desorption_stage:
         total_carrier_gas = desorption_stage.N2_out + desorption_stage.O2_out + desorption_stage.H2O_out
         dry_content_carrier_gas = desorption_stage.N2_out + desorption_stage.O2_out
-
+    
     # Calculate CO2 fed 
     for stage_name in ['adsorption', 'pressurisation']:
         if stage_name in stage_kpis_dict:
@@ -180,27 +183,31 @@ def calculate_cycle_kpis(cycle_number: int, stage_kpis_dict: Dict[str, StageKPIs
     else:
         bed_size_factor = 0.0
     
+    total_heating_energy = 0.0
+    total_fan_energy = 0.0
+    total_vacuum_energy = 0.0
+  
     # Energy metrics
-    for stage_name in ['heating']:
+    for stage_name in ['heating', 'steam_desorption', 'desorption']:
         if stage_name in stage_kpis_dict:
             stage = stage_kpis_dict[stage_name]
             total_heating_energy = stage.heat_supplied  # J
             Q_thermal = stage.heat_supplied / total_CO2_captured  # J/mol
-    for stage_name in ['adsorption']:
+    for stage_name in ['adsorption',]:
         if stage_name in stage_kpis_dict:
             stage = stage_kpis_dict[stage_name]
-            total_fan_energy = stage.fan_work_done
+            total_fan_energy += stage.fan_work_done
             W_fan = stage.fan_work_done / total_CO2_captured  # J/mol
     for stage_name in ['cooling', 'blowdown', 'pressurisation', 'desorption', 'steam_desorption']:
         if stage_name in stage_kpis_dict:
             stage = stage_kpis_dict[stage_name]
-            total_vacuum_energy = stage.vacuum_work_done
+            total_vacuum_energy += stage.vacuum_work_done
             W_vacuum = stage.vacuum_work_done / total_CO2_captured  # J/mol
     for stage_name in ['steam_desorption']:
         if stage_name in stage_kpis_dict:
             stage = stage_kpis_dict[stage_name]
-            total_heating_energy += stage.heat_supplied  # J
-            Q_thermal += stage.heat_supplied / total_CO2_captured  # J/mol
+            total_heating_energy += stage.steam_supplied  # J
+            Q_steam = stage.steam_supplied / total_CO2_captured  # J/mol
     
     # Specific energy (MJ / kg CO2 captured)
 

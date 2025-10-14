@@ -107,6 +107,11 @@ def create_fixed_properties():
         "P_ref": 101325,    # Reference pressure [Pa]
         "T_ref": 298.15,    # Reference temperature [K]
         "n_ref": 3000,      # Reference adsorbed amount [mol/m³]
+
+        #Water properties
+        "Cp_water": 4181.3, # Heat capacity of water [J/kg.K]
+        "Cp_steam": 2010,  # Heat capacity of steam [J/kg.K]
+        "vaporization_energy": 2257e3, # Latent heat of vaporization for water [J/kg]
         
         # Calculated properties
         "sorbent_mass": 0.01 * 0.04**2 * np.pi * 55.4,          # [kg]
@@ -152,7 +157,7 @@ def create_fixed_properties():
     
     # Additional state variables (flow rates and balance errors)
     F_init = np.zeros(8)    # Flow rate variables
-    E_init = np.zeros(6)    # Energy balance variables
+    E_init = np.zeros(7)    # Energy balance variables
     
     # Combine all initial conditions (scaled by reference values)
     initial_conditions = np.concatenate([
@@ -378,7 +383,6 @@ def run_stage(left_values, right_values, column_direction, stage, t_span,
     n1_eq = adsorption_isotherm_1(P_result, T_result, y1_result, y2_result, y3_result, 400e-6, 0.0115,
                                    bed_properties=bed_properties, 
                                    isotherm_type_1=bed_properties["isotherm_type_1"])[0]
-    print(n1_eq.shape)
     
     # Calculate mass balance error for validation
     mass_balance_error = total_mass_balance_error(
@@ -408,7 +412,7 @@ def run_stage(left_values, right_values, column_direction, stage, t_span,
     n1_final = n1_result[:, -1]
     n2_final = n2_result[:, -1]
     F_final = np.zeros(8) #F_result[:, -1]
-    E_final = np.zeros(6) #E_result[:, -1]
+    E_final = np.zeros(7) #E_result[:, -1]
     P_walls_final = P_walls_result[:, -1]
    
     
@@ -515,7 +519,7 @@ def run_cycle(n_cycles):
                 stage_conditions[2*column_grid["num_cells"]:3*column_grid["num_cells"]] = \
                     bed_properties["ambient_temperature"] / bed_properties["T_ref"]
               
-            E_result = np.zeros((6,))
+            E_result = np.zeros((7,))
             F_result = np.zeros((8,))
             simulation_time = np.zeros(6,)
             # Define boundary conditions

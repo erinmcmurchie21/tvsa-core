@@ -977,8 +977,11 @@ def ODE_calculations(t, results_vector, column_grid, bed_properties, left_values
              * bed_properties["R"] * T_walls[-1] * ((bed_properties["ambient_pressure"]/P_walls[-1])**((bed_properties["k"] - 1) / (bed_properties["k"]))-1)) # Compressor work (J/s)
     dE6dt = -1 *((dF1dt + dF2dt + dF3dt + dF4dt) / bed_properties["fan_efficiency"] * (bed_properties["k"]/(1-bed_properties["k"])) 
              * bed_properties["R"] * T_walls[0] * ((P_walls[0]/bed_properties["ambient_pressure"])**((bed_properties["k"] - 1) / (bed_properties["k"]))-1)) # Fan work (J/s)
-    
-    dEdt = np.array([dE1dt, dE2dt, dE3dt, dE4dt, dE5dt, dE6dt])
+    dE7dt = bed_properties["MW_2"] / 1000 * (dF2dt * bed_properties['Cp_water']*(func.H2O_boiling_point(P_walls[0])- bed_properties['ambient_temperature']) 
+             +dF2dt * bed_properties["vaporization_energy"] * dF2dt * bed_properties['Cp_steam']*(bed_properties['steam_temperature']-func.H2O_boiling_point(P_walls[0])))
+    # Sensible energy to heat water to boiling point (J/s)
+
+    dEdt = np.array([dE1dt, dE2dt, dE3dt, dE4dt, dE5dt, dE6dt, dE7dt])
     # Combine derivatives into a single vector
     if column_direction == "forwards":
         derivatives = np.concatenate([dPdt/bed_properties["P_ref"], dTdt/bed_properties["T_ref"], dTwdt/bed_properties["T_ref"], dy1dt, dy2dt, dy3dt, dn1dt/bed_properties["n_ref"], dn2dt/bed_properties["n_ref"], dFdt, dEdt])
