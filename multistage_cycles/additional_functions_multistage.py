@@ -546,17 +546,52 @@ def cycle_error(initial_state_vector, final_state_vector):
 # 6. PLOTTING
 # ============================================================
 
-def create_polished_plot(time, result, title, y_label):
-    """Quick plot of first, middle, and last node of a variable over time."""
-    plt.figure(figsize=(6, 4))
-    for idx, label in zip([0, 9, 29], ['First node', 'Central node', 'Final node']):
-        plt.plot(time, result[idx], label=label, linewidth=2, marker='o', markersize=3)
+def create_polished_plot(time, result, title, y_label, save_path=None):
+    """
+    Publication-quality plot of first, middle, and last node of a variable over time.
 
-    plt.title(title, fontsize=16, fontweight='bold')
-    plt.xlabel('Time', fontsize=12)
-    plt.ylabel(y_label, fontsize=12)
-    plt.legend(fontsize=11)
-    plt.grid(True, alpha=0.3)
+    Args:
+        time (array): Time points.
+        result (2D array): Variable values (shape: nodes x time).
+        title (str): Plot title.
+        y_label (str): Y-axis label.
+        save_path (str, optional): If provided, saves the figure to this path.
+    """
+    import matplotlib as mpl
+    mpl.rcParams.update({
+        "font.size": 14,
+        "font.family": "serif",
+        "axes.labelsize": 16,
+        "axes.titlesize": 18,
+        "legend.fontsize": 13,
+        "xtick.labelsize": 13,
+        "ytick.labelsize": 13,
+        "lines.linewidth": 2.5,
+        "figure.dpi": 150,
+        "axes.grid": True,
+        "grid.alpha": 0.4,
+    })
+
+    plt.figure(figsize=(7, 5))
+    color_list = ["#1f77b4", "#ff7f0e", "#2ca02c"]
+    node_indices = [0, result.shape[0] // 2, result.shape[0] - 1]
+    node_labels = ['First node', 'Central node', 'Final node']
+
+    for idx, label, color in zip(node_indices, node_labels, color_list):
+        plt.plot(time, result[idx], label=label, color=color, marker='o', markersize=5, alpha=0.9)
+
+    plt.title(title, fontsize=18, fontweight='bold', pad=12)
+    plt.xlabel('Time (s)', fontsize=16, labelpad=8)
+    plt.ylabel(y_label, fontsize=16, labelpad=8)
+    plt.legend(loc='best', frameon=True)
+    plt.tight_layout(pad=2)
+    plt.grid(True, which='major', linestyle='--', alpha=0.4)
+    plt.minorticks_on()
+    plt.tick_params(axis='both', which='major', length=6)
+    plt.tick_params(axis='both', which='minor', length=3)
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
     plt.show()
 
 def create_quick_plot(time, result, title, y_label):
