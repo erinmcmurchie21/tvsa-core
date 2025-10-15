@@ -3,7 +3,7 @@ from scipy.integrate import solve_ivp
 from additional_functions_multistage import (
     create_non_uniform_grid, adsorption_isotherm_1, adsorption_isotherm_2, 
     total_mass_balance_error, create_multi_plot, create_quick_plot, 
-    product_mass, product_mols, cycle_error, relative_humidity_to_mole_fraction, pressure_ramp, pressure_ramp_2, mole_fraction_to_relative_humidity
+    product_mass, product_mols, cycle_error, relative_humidity_to_mole_fraction, pressure_ramp, pressure_ramp_2, mole_fraction_to_relative_humidity, create_polished_plot, plot_all_profiles
 )
 import time
 import tvsa_adsorption_column_multistage as column
@@ -624,11 +624,27 @@ def main():
     # Unpack results
     profiles, all_cycle_kpis, all_cycle_errors = simulation_results
 
+    stages = [
+        ("adsorption", [0, bed_properties["adsorption_time"]]),
+        ("blowdown", [0, bed_properties["blowdown_time"]]),
+        ("heating", [0, bed_properties["heating_time"]]),
+        ("steam_desorption", [0, bed_properties["desorption_time"]]),
+        ("pressurisation", [0, bed_properties["pressurisation_time"]]),
+    ]
+    stage_change_times = np.cumsum([t[1] for _, t in stages])
+    stage_names = [name for name, _ in stages]
+
     # Create visualization
     create_multi_plot(profiles, bed_properties)
     create_quick_plot(np.arange(1, len(all_cycle_errors)+1), 
                      np.log10(all_cycle_errors), "Cycle Convergence", "Log₁₀(Cycle Error)")
-    
+    plot_all_profiles(
+        np.array(profiles['time']),
+        profiles,
+        stage_change_times,
+        stage_names,
+        bed_properties
+    )
     print("\nSimulation completed successfully!")
 
     def save_profile_data(profiles, output_dir="profiles"):
@@ -638,7 +654,7 @@ def main():
             filename = f"{output_dir}/{key}.csv"
             np.savetxt(filename, np.array(arr), delimiter=",")
 
-    #save_profile_data(profiles, output_dir="profiles_mechanistic")
+    save_profile_data(profiles, output_dir="profiles_modifiedtoth_15102025")
 
 
 if __name__ == "__main__":

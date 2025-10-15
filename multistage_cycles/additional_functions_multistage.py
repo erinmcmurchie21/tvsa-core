@@ -546,7 +546,8 @@ def cycle_error(initial_state_vector, final_state_vector):
 # 6. PLOTTING
 # ============================================================
 
-def create_polished_plot(time, result, title, y_label, save_path=None):
+def create_polished_plot(time, result, y_label,  stage_change_times, stage_names, save_path=None,):
+ 
     """
     Publication-quality plot of first, middle, and last node of a variable over time.
 
@@ -556,11 +557,18 @@ def create_polished_plot(time, result, title, y_label, save_path=None):
         title (str): Plot title.
         y_label (str): Y-axis label.
         save_path (str, optional): If provided, saves the figure to this path.
+
+    result = np.array(result)
+
     """
+
+    time = np.array(time)
+    result = np.array(result)
     import matplotlib as mpl
     mpl.rcParams.update({
         "font.size": 14,
-        "font.family": "serif",
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial"],
         "axes.labelsize": 16,
         "axes.titlesize": 18,
         "legend.fontsize": 13,
@@ -572,26 +580,94 @@ def create_polished_plot(time, result, title, y_label, save_path=None):
         "grid.alpha": 0.4,
     })
 
-    plt.figure(figsize=(7, 5))
-    color_list = ["#1f77b4", "#ff7f0e", "#2ca02c"]
-    node_indices = [0, result.shape[0] // 2, result.shape[0] - 1]
-    node_labels = ['First node', 'Central node', 'Final node']
+    plt.figure(figsize=(9, 4))
+    
+    # Add vertical lines and stage labels
+    stage_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
 
-    for idx, label, color in zip(node_indices, node_labels, color_list):
-        plt.plot(time, result[idx], label=label, color=color, marker='o', markersize=5, alpha=0.9)
 
-    plt.title(title, fontsize=18, fontweight='bold', pad=12)
+    stage_edges = np.concatenate(([time[0]], stage_change_times))
+    for i in range(len(stage_names)):
+        mask = (time >= stage_edges[i]) & (time <= stage_edges[i+1])
+        plt.plot(time[mask], result[mask], color=stage_colors[i % len(stage_colors)],
+                 label=stage_names[i].capitalize())
+        #plt.axvline(stage_edges[i+1], color='grey', linestyle='--', alpha=0.7)
+
     plt.xlabel('Time (s)', fontsize=16, labelpad=8)
     plt.ylabel(y_label, fontsize=16, labelpad=8)
-    plt.legend(loc='best', frameon=True)
     plt.tight_layout(pad=2)
-    plt.grid(True, which='major', linestyle='--', alpha=0.4)
+    plt.grid(False)
     plt.minorticks_on()
     plt.tick_params(axis='both', which='major', length=6)
     plt.tick_params(axis='both', which='minor', length=3)
 
+    plt.locator_params(axis='y', nbins=3)
+
     if save_path:
         plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    plt.show()
+
+def plot_all_profiles(time, profiles, stage_change_times, stage_names, bed_properties):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import matplotlib as mpl
+
+    mpl.rcParams.update({
+        "font.size": 13,
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Helvetica"],
+        "axes.labelsize": 14,
+        "axes.titlesize": 15,
+        "legend.fontsize": 12,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12,
+        "lines.linewidth": 2.0,
+        "figure.dpi": 150,
+    })
+
+    fig, axes = plt.subplots(3, 2, figsize=(9, 7), sharex=True)
+    axes = axes.flatten()
+
+    profile_list = [
+        ("adsorbed_CO2", "Adsorbed CO$_2$, mol/kg"),
+        ("adsorbed_H2O", "Adsorbed H$_2$O, mol/kg"),
+        ("temperature", "Fluid temperature, K"),
+        ("pressure_outlet", "Outlet pressure, bar"),
+        ("outlet_air", "Outlet air mole fraction"),
+        ("RH", "Outlet relative humidity"),
+    ]
+
+    # Calculate outlet_air and RH if not present
+    outlet_air = np.array(profiles['outlet_N2']) + np.array(profiles['outlet_O2'])
+    RH = mole_fraction_to_relative_humidity(np.array(profiles['outlet_H2O']), np.array(profiles['pressure_outlet']), np.array(profiles['temperature']))
+    adsorbed_CO2 = np.array(profiles['adsorbed_CO2']) * (1 - bed_properties["bed_voidage"]) / bed_properties["bed_density"]
+    adsorbed_H2O = np.array(profiles['adsorbed_H2O']) * (1 - bed_properties["bed_voidage"]) / bed_properties["bed_density"]
+
+    data_dict = dict(profiles)
+    data_dict['outlet_air'] = outlet_air
+    data_dict['RH'] = RH
+
+    stage_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+    stage_edges = np.concatenate(([time[0]], stage_change_times))
+
+    for ax, (key, ylabel) in zip(axes, profile_list):
+        for i in range(len(stage_names)):
+            mask = (time >= stage_edges[i]) & (time <= stage_edges[i+1])
+            ydata = np.array(data_dict[key])[mask]
+            # Convert pressure from Pa to bar
+            if key == "pressure_outlet":
+                ydata = ydata / 1e5
+            ax.plot(time[mask], ydata, color=stage_colors[i % len(stage_colors)])
+        ax.set_ylabel(ylabel)
+        ax.locator_params(axis='y', nbins=5)
+        ax.grid(False)
+        ax.minorticks_on()
+        ax.tick_params(axis='both', which='major', length=6)
+        ax.tick_params(axis='both', which='minor', length=3)
+
+    axes[-1].set_xlabel("Time (s)")
+    axes[-2].set_xlabel("Time (s)")
+    plt.tight_layout()
     plt.show()
 
 def create_quick_plot(time, result, title, y_label):
