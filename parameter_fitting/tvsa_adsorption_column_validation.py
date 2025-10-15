@@ -114,7 +114,7 @@ def left_boundary_conditions(P, T, Tw, y1, y2, y3, column_grid, bed_properties, 
         D_l = func.calculate_axial_dispersion_coefficient(bed_properties, left_values)  # [m²/s]
         v_left = left_values["velocity"]                      # [m/s]
         Cp_g = func.calculate_gas_heat_capacity()               # [J/mol·K]
-        thermal_diffusivity = func.calculate_gas_thermal_conductivity() / (Cp_g * rho_gas_left)  # [m²/s]
+        thermal_diffusivity = bed_properties['K_z'] / (Cp_g * rho_gas_left)  # [m²/s]
 
         # Calculate left mole fractions using convective boundary conditions
         # Boundary condition: dy/dz = -(v/D_l)(y_feed - y_left)
@@ -514,7 +514,7 @@ def calculate_internal_wall_values(P_all, T_all, Tw_all, y1_all, y2_all, y3_all,
     dTdz_walls[-1] = 0
     rho_gas_left = func.calculate_gas_density(P_all[1], T_all[1])  # [mol/m³]
     Cp_g = func.calculate_gas_heat_capacity()               # [J/mol·K]
-    thermal_diffusivity = func.calculate_gas_thermal_conductivity() / (Cp_g * rho_gas_left)
+    thermal_diffusivity = bed_properties["K_z"] / (Cp_g * rho_gas_left)
     Pe_h = bed_properties["bed_voidage"] / thermal_diffusivity
     v_left = left_values["velocity"] 
     dTdz_walls[0] = -(v_left * Pe_h) * (left_values["feed_temperature"] - T_left)  # set left temperature gradient

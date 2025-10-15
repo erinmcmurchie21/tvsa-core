@@ -35,19 +35,24 @@ def create_fixed_properties():
     "R": 8.314,  # Universal gas constant in J/(mol*K)
     "sorbent_mass": 0.286 * 0.00945**2 * np.pi* 435,  # Example value for sorbent mass in kg
     "sorbent_heat_capacity": 1040, # J /kg/K, # Example value for solid heat capacity
+    
     "wall_heat_capacity": 902, # J /kg/K, # Example value for wall heat capacity (Haghpanagh et al. 2013)
     "heat_capacity_1": 840 * 44.01 / 1000,  # J / kgK / (kg/mol) J/mol K * kg/m3 Example value for adsorbed phase heat capacity of component 1 (CO2) 
     "heat_capacity_2": 30,  # Example value for adsorbed phase heat capacity of component 2 (H2O)
     "mass_transfer_1": 0.0002,  # Example value for mass transfer coefficient of component 1 (CO2) in s-1
     "mass_transfer_2": 0.002,  # Example value for mass transfer coefficient of component 2 (H2O) in s-1
+    
     "K_z":1, # Example value for axial dispersion coefficient in m²/s
     "h_bed": 50,  # 140,  # Example value for bed heat transfer coefficient in W/m²·K
     "h_wall": 7,  # 20,  # Example value for wall heat transfer coefficient in W
+    
     "MW_1": 44.01,  # Molecular weight of component 1 (CO2) in g/mol
     "MW_2": 18.02,  # Molecular weight of component 2 (H2O) in g/mol
     "MW_3": 28.02,  # Molecular weight of component 3 (N2) in g/mol
     "MW_4": 32.00,  # Molecular weight of component 4 (O2) in g/mol
+    
     "mu": 1.78e-5,  # Example value for feed viscosity in Pa.s
+    
     "isotherm_type_1": "Dual_site Langmuir",
     "isotherm_type_2": "None",  # Example value for isotherm type for component 2 (H2O)
 
@@ -62,9 +67,9 @@ def create_fixed_properties():
 
     # Initial values for the column
     P = np.ones(column_grid["num_cells"]) * 101325  # Example pressure vector in Pa
-    T = np.ones(column_grid["num_cells"]) * 292  # Example temperature vector in K
-    Tw = np.ones(column_grid["num_cells"]) * 292  # Example wall temperature vector in K
-    y1 = np.ones(column_grid["num_cells"]) * 0.02  # Example mole fraction of component 1
+    T = np.ones(column_grid["num_cells"]) * 291.5  # Example temperature vector in K
+    Tw = np.ones(column_grid["num_cells"]) * 291.5  # Example wall temperature vector in K
+    y1 = np.ones(column_grid["num_cells"]) * 0.0  # Example mole fraction of component 1
     y2 = np.ones(column_grid["num_cells"]) * 1e-6 # Example mole fraction of component 2
     y3 = np.ones(column_grid["num_cells"]) * 0.95  # Example mole fraction of component 3
     n1 = adsorption_isotherm_1(P, T, y1, y2, y3, 1e-6, bed_properties=bed_properties, isotherm_type_1=bed_properties["isotherm_type_1"])[0]  # Example concentration vector for component 1 in mol/m^3
@@ -133,10 +138,13 @@ bed_properties, column_grid, initial_conditions, rtol, atol_array = create_fixed
 left_values, right_values, column_direction = define_boundary_conditions(bed_properties)
 t_span = [0, 3000]  # Time span for the ODE solver
 
+max_step = 0.5
+first_step = 1e-6
+
 t0=time.time()
 def ODE_func(t, results_vector,):
     return column.ODE_calculations(t, results_vector=results_vector, column_grid=column_grid, bed_properties=bed_properties, left_values=left_values, right_values=right_values, column_direction=column_direction)
-output_matrix = solve_ivp(ODE_func, t_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array)
+output_matrix = solve_ivp(ODE_func, t_span, initial_conditions, method='BDF', rtol=rtol, atol=atol_array, max_step=max_step, first_step=first_step)
 t1=time.time()
 total_time = t1 - t0
     

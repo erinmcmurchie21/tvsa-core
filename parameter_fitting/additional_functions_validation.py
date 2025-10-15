@@ -234,9 +234,6 @@ def heat_transfer_coefficient():
 def calculate_gas_viscosity():
     return 1.8e-5  # Pa·s
 
-def calculate_gas_thermal_conductivity():
-    return 1  # W/(m·K)
-
 def calculate_wall_thermal_conductivity():
     return 205  # W/(m·K)
 
