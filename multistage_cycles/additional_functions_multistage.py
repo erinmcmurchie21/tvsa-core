@@ -546,7 +546,7 @@ def cycle_error(initial_state_vector, final_state_vector):
 # 6. PLOTTING
 # ============================================================
 
-def create_plot(time, result, title, y_label):
+def create_polished_plot(time, result, title, y_label):
     """Quick plot of first, middle, and last node of a variable over time."""
     plt.figure(figsize=(6, 4))
     for idx, label in zip([0, 9, 29], ['First node', 'Central node', 'Final node']):
