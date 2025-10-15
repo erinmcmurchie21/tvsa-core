@@ -27,7 +27,8 @@ def import_data():
 def objective_function(
     parameters,
 ):
-    
+    bed_properties, column_grid, initial_conditions, rtol, atol_array = run.create_fixed_properties()
+    left_values, right_values, column_direction = run.define_boundary_conditions(bed_properties)
     simulation_conditions = {
         "bed_properties": bed_properties,
         "column_grid": column_grid,
@@ -96,50 +97,6 @@ def objective_function(
     total_error += weights.get('molefraction', 1.0) * molefraction_error
 
     return total_error
-    print(f"Starting parameter fitting for: {param_names}")
-    print(f"Initial guess: {initial_guess}")
-    print(f"Bounds: {bounds}")
-    start_time = time.time()
-
-    optimization_history = []
-
-    objective = partial(
-        objective_function,
-        initial_guess=initial_guess,
-        simulation_conditions=simulation_conditions,
-        observed_data=observed_data,
-        param_names=param_names,
-        weights=weights,
-        tot_time=tot_time,
-        optimization_history=optimization_history
-    )
-
-    result = differential_evolution(
-        objective,
-        bounds,
-        seed=42,
-        maxiter=1,
-        popsize=0,
-        atol=1e-6,
-        tol=1e-6,
-        disp=True,
-        init='sobol',
-        polish=False,
-        workers=4,
-        updating='immediate'
-    )
-
-    end_time = time.time()
-
-    print(f"\nOptimization completed in {end_time - start_time:.2f} seconds")
-    print(f"Success: {result.success}")
-    print(f"Final parameters: {dict(zip(param_names, result.x))}")
-    print(f"Final error: {result.fun}")
-
-    best_params = dict(zip(param_names, result.x))
-    best_result = result
-
-    return best_params, best_result, optimization_history
 
 def run_best_simulation(best_params, simulation_conditions, tot_time):
     bed_properties = simulation_conditions["bed_properties"].copy()
