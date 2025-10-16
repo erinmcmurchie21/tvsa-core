@@ -264,14 +264,14 @@ if __name__ == "__main__":
         objective_function,
         bounds,
         seed=42,
-        maxiter=1,
-        popsize=0,
+        maxiter=1000,
+        popsize=40,
         atol=1e-6,
         tol=1e-6,
         disp=True,
         init="sobol",
         updating="immediate",
-        workers=4,
+        workers=16,
     )
 
     print(f"Success: {result.success}")

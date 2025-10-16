@@ -115,9 +115,9 @@ def create_fixed_properties():
 
     rtol = 1e-5
 
-    atol_P = 1e-5 * np.ones(len(P))
+    atol_P = 1e-4 * np.ones(len(P))
     atol_T = 1e-4 * np.ones(len(T))
-    atol_Tw = 1e-5 * np.ones(len(Tw))
+    atol_Tw = 1e-4 * np.ones(len(Tw))
     atol_y1 = 1e-8 * np.ones(len(y1))
     atol_y2 = 1e-8 * np.ones(len(y2))
     atol_y3 = 1e-8 * np.ones(len(y3))
@@ -178,6 +178,8 @@ def define_boundary_conditions(bed_properties):
 
 # Running simulation! ======================================================================================================
 if __name__ == "__main__":
+
+    print("Starting simulation...")
     P_result = []
     T_result = []
     Tw_result = []
@@ -199,7 +201,7 @@ if __name__ == "__main__":
     t_span = [0, 3000]  # Time span for the ODE solver
 
     max_step = 0.5
-    first_step = 1e-6
+    first_step = 1e-3
 
     t0 = time.time()
 
@@ -275,38 +277,8 @@ if __name__ == "__main__":
             column_grid,
         ),
     )
-    print(
-        "CO2 mass balance error:",
-        CO2_mass_balance_error(
-            F_result,
-            P_result,
-            T_result,
-            y1_result,
-            n1_result,
-            time,
-            bed_properties,
-            column_grid,
-        ),
-    )
-    print(
-        "Energy balance error:",
-        energy_balance_error(
-            E_result,
-            T_result,
-            P_result,
-            y1_result,
-            y2_result,
-            y3_result,
-            n1_result,
-            n2_result,
-            Tw_result,
-            time,
-            bed_properties,
-            column_grid,
-        ),
-    )
     print("Total simulation time:", total_time, "seconds")
-    print("Duration of simulation:", time[-1], "seconds")
+    print("Simulation complete!")
 
     # Calculate the exit column values
     (
