@@ -2,6 +2,7 @@ import numpy as np
 import scipy.integrate
 import matplotlib.pyplot as plt
 import scipy.sparse as sps
+import config_JY as cfg
 
 # ============================================================
 # 1. GRID DEFINITION
@@ -441,10 +442,10 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid)
     heat_in = E[0, -1]
     heat_out = E[1, -1]
 
-    ΔH1 = adsorption_isotherm_1(
+    ΔH1 = cfg.adsorption_isotherm_1(
         P[:, -1], T[:, -1], y1[:, -1], y2[:, -1], y3[:, -1], n1[:, -1], bed_props
     )[1]
-    ΔH2 = adsorption_isotherm_2(P[:, -1], T[:, -1], y2[:, -1], bed_props)[1]
+    ΔH2 = cfg.adsorption_isotherm_2(P[:, -1], T[:, -1], y2[:, -1], bed_props)[1]
 
     heat_gen = (
         (1 - ε)
