@@ -3,6 +3,7 @@ from additional_functions_multistage import (
     create_non_uniform_grid,
 )
 
+
 def create_fixed_properties():
     """
     Define fixed bed properties, grid configuration, and initial conditions.
@@ -92,29 +93,39 @@ def create_fixed_properties():
             "y2": 1 - 2e-6,
             "y3": 1e-6,
         },
-
-        "stage_config" : {
-                "adsorption": {
-                    "left": "mass_flow",
-                    "right": "pressure",
-                    "direction": "forwards",
-                },
-                "blowdown": {"left": "closed", "right": "pressure", "direction": "forwards"},
-                "heating": {"left": "closed", "right": "pressure", "direction": "forwards"},
-                "desorption": {"left": "closed", "right": "pressure", "direction": "forwards"},
-                "steam_desorption": {
-                    "left": "mass_flow",
-                    "right": "pressure",
-                    "direction": "forwards",
-                },
-                "pressurisation": {
-                    "left": "pressure",
-                    "right": "closed",
-                    "direction": "forwards",
-                },
-                "cooling": {"left": "mass_flow", "right": "closed", "direction": "forwards"},
-            }
-
+        "stage_config": {
+            "adsorption": {
+                "left": "mass_flow",
+                "right": "pressure",
+                "direction": "forwards",
+            },
+            "blowdown": {
+                "left": "closed",
+                "right": "pressure",
+                "direction": "forwards",
+            },
+            "heating": {"left": "closed", "right": "pressure", "direction": "forwards"},
+            "desorption": {
+                "left": "closed",
+                "right": "pressure",
+                "direction": "forwards",
+            },
+            "steam_desorption": {
+                "left": "mass_flow",
+                "right": "pressure",
+                "direction": "forwards",
+            },
+            "pressurisation": {
+                "left": "pressure",
+                "right": "closed",
+                "direction": "forwards",
+            },
+            "cooling": {
+                "left": "mass_flow",
+                "right": "closed",
+                "direction": "forwards",
+            },
+        },
     }
 
     # Create spatial discretization grid
@@ -204,6 +215,7 @@ def create_fixed_properties():
 
     return bed_properties, column_grid, initial_conditions, rtol, atol_array
 
+
 def adsorption_isotherm_1(
     pressure, temperature, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1="WADST"
 ):
@@ -287,6 +299,7 @@ def adsorption_isotherm_1(
         )  # J/mol
 
     return load_m3, ΔH
+
 
 def adsorption_isotherm_2(
     pressure, temperature, y2, bed_properties, isotherm_type="GAB"

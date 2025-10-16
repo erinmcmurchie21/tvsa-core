@@ -17,7 +17,12 @@ from kpi_calculations import (
     print_stage_kpis,
     print_cycle_kpis,
 )
-from config_JY import create_fixed_properties, adsorption_isotherm_1, adsorption_isotherm_2
+from config_JY import (
+    create_fixed_properties,
+    adsorption_isotherm_1,
+    adsorption_isotherm_2,
+)
+
 """
 Multi-stage adsorption column simulation for CO2 capture.
 
@@ -56,7 +61,7 @@ def define_stage_conditions(stage, bed_properties, pressure_left, pressure_right
 
     # Rest of the function remains the same...
     # Define flow direction and boundary types for each stage
-    
+
     stage_config = bed_properties["stage_config"]
     config = stage_config[stage]
     column_direction = config["direction"]
@@ -77,7 +82,7 @@ def define_stage_conditions(stage, bed_properties, pressure_left, pressure_right
             left_velocity = bed_properties["feed_velocity"]
         elif stage == "steam_desorption":
             left_velocity = bed_properties["steam_velocity"]
-        else: 
+        else:
             left_velocity = None
         return left_velocity
 
@@ -393,9 +398,13 @@ def run_cycle(n_cycles):
         # Dictionary to store stage KPIs
         stage_kpis_dict = {}
         # Define stage sequence and durations
-        
+
         stage_config = bed_properties["stage_config"]
-        stages = [(stage, [0, bed_properties[f"{stage}_time"]]) for stage in stage_config.keys() if f"{stage}_time" in bed_properties]
+        stages = [
+            (stage, [0, bed_properties[f"{stage}_time"]])
+            for stage in stage_config.keys()
+            if f"{stage}_time" in bed_properties
+        ]
 
         stage_conditions = current_initial_conditions
         cycle_time = np.sum([t[1] - t[0] for _, t in stages])

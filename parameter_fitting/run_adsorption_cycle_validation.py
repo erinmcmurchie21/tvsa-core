@@ -178,7 +178,6 @@ def define_boundary_conditions(bed_properties):
 
 # Running simulation! ======================================================================================================
 if __name__ == "__main__":
-
     print("Starting simulation...")
     P_result = []
     T_result = []

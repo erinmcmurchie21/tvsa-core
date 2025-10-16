@@ -424,7 +424,9 @@ def CO2_mass_balance_error(F, P, T, y1, n1, time, bed_props, grid):
     return np.abs(mole_in - mole_out - mole_acc) / np.abs(mole_acc) * 100
 
 
-def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid):
+def energy_balance_error(
+    E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid, isotherm_1, isotherm_2
+):
     """
     Returns % energy balance error.
     """
