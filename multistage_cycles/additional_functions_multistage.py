@@ -621,7 +621,7 @@ def plot_all_profiles(time, profiles, stage_change_times, stage_names, bed_prope
         "legend.fontsize": 12,
         "xtick.labelsize": 12,
         "ytick.labelsize": 12,
-        "lines.linewidth": 2.0,
+        "lines.linewidth": 1.0,
         "figure.dpi": 150,
     })
 
@@ -632,42 +632,85 @@ def plot_all_profiles(time, profiles, stage_change_times, stage_names, bed_prope
         ("adsorbed_CO2", "Adsorbed CO$_2$, mol/kg"),
         ("adsorbed_H2O", "Adsorbed H$_2$O, mol/kg"),
         ("temperature", "Fluid temperature, K"),
-        ("pressure_outlet", "Outlet pressure, bar"),
-        ("outlet_air", "Outlet air mole fraction"),
-        ("RH", "Outlet relative humidity"),
+        ("pressure_outlet", "Pressure, bar"),
+        #("outlet_air", "Air mole fraction"),
+        ("RH", "Relative humidity"),
     ]
 
     # Calculate outlet_air and RH if not present
     outlet_air = np.array(profiles['outlet_N2']) + np.array(profiles['outlet_O2'])
     RH = mole_fraction_to_relative_humidity(np.array(profiles['outlet_H2O']), np.array(profiles['pressure_outlet']), np.array(profiles['temperature']))
-    adsorbed_CO2 = np.array(profiles['adsorbed_CO2']) * (1 - bed_properties["bed_voidage"]) / bed_properties["bed_density"]
-    adsorbed_H2O = np.array(profiles['adsorbed_H2O']) * (1 - bed_properties["bed_voidage"]) / bed_properties["bed_density"]
+    bed_density = bed_properties["bed_density"]
+    bed_voidage = bed_properties["bed_voidage"]
+    
+    adsorbed_CO2_kg = np.array(profiles["adsorbed_CO2"]) / (bed_density / (1 - bed_voidage))
+    adsorbed_H2O_kg = np.array(profiles["adsorbed_H2O"]) / (bed_density / (1 - bed_voidage))
 
     data_dict = dict(profiles)
     data_dict['outlet_air'] = outlet_air
+    data_dict['RH'] = RH
+    data_dict['adsorbed_CO2'] = adsorbed_CO2_kg
+    data_dict['adsorbed_H2O'] = adsorbed_H2O_kg
+
+    stage_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+    stage_edges = np.concatenate(([time[0]], stage_change_times))
+
+
+    outlet_CO2 = np.array(profiles['outlet_CO2'])
+    outlet_H2O = np.array(profiles['outlet_H2O'])
+    RH = mole_fraction_to_relative_humidity(np.array(profiles['outlet_H2O']), np.array(profiles['pressure_outlet']), np.array(profiles['temperature']))
+
+    data_dict = dict(profiles)
     data_dict['RH'] = RH
 
     stage_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
     stage_edges = np.concatenate(([time[0]], stage_change_times))
 
-    for ax, (key, ylabel) in zip(axes, profile_list):
+    # Plot first four profiles
+    for ax, (key, ylabel) in zip(axes[:4], profile_list[:4]):
         for i in range(len(stage_names)):
             mask = (time >= stage_edges[i]) & (time <= stage_edges[i+1])
             ydata = np.array(data_dict[key])[mask]
-            # Convert pressure from Pa to bar
             if key == "pressure_outlet":
                 ydata = ydata / 1e5
             ax.plot(time[mask], ydata, color=stage_colors[i % len(stage_colors)])
         ax.set_ylabel(ylabel)
         ax.locator_params(axis='y', nbins=5)
+        ax.linewidth = 0.1
         ax.grid(False)
-        ax.minorticks_on()
         ax.tick_params(axis='both', which='major', length=6)
         ax.tick_params(axis='both', which='minor', length=3)
+
+    # Fifth subplot: outlet CO2 and H2O mole fractions
+    ax5 = axes[4]
+    for i in range(len(stage_names)):
+        mask = (time >= stage_edges[i]) & (time <= stage_edges[i+1])
+        ax5.plot(time[mask], outlet_CO2[mask], label="CO$_2$",color='k', linestyle='--')
+        ax5.plot(time[mask], outlet_H2O[mask], label="H$_2$O",color='gray')
+    ax5.set_ylabel("Gas-phase mole fraction")
+    ax5.locator_params(axis='y', nbins=5)
+    ax5.grid(False)
+    ax5.linewidth = 0.1
+    ax5.tick_params(axis='both', which='major', length=6)
+    ax5.tick_params(axis='both', which='minor', length=3)
+    #ax5.legend(loc="best", frameon=False)
+
+    # Sixth subplot: RH
+    ax6 = axes[5]
+    for i in range(len(stage_names)):
+        mask = (time >= stage_edges[i]) & (time <= stage_edges[i+1])
+        ax6.plot(time[mask], RH[mask], color=stage_colors[i % len(stage_colors)])
+    ax6.set_ylabel("-")
+    ax6.locator_params(axis='y', nbins=5)
+    ax6.grid(False)
+    ax6.linewidth = 0.1
+    ax6.tick_params(axis='both', which='major', length=6)
+    ax6.tick_params(axis='both', which='minor', length=3)
 
     axes[-1].set_xlabel("Time (s)")
     axes[-2].set_xlabel("Time (s)")
     plt.tight_layout()
+    plt.subplots_adjust(wspace=0.3, hspace=0.4)  # Increase white space between plots
     plt.show()
 
 def create_quick_plot(time, result, title, y_label):
