@@ -220,135 +220,6 @@ def build_jacobian(num_cells):
 
     return sps.csr_matrix(S)
 
-
-# ============================================================
-# 3. ISOTHERM EQUILIBRIA
-# ============================================================
-
-
-def adsorption_isotherm_1(
-    pressure, temperature, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1="WADST"
-):
-    """
-    Toth isotherm for CO₂ on solid sorbent.
-
-    Returns:
-        equilibrium_loading (mol/m³ of solid)
-        adsorption_heat_1 (J/mol)
-    """
-    R = 8.314  # J/(mol·K)
-    bed_density = bed_properties["bed_density"]  # kg/m³
-    ε = bed_properties["bed_voidage"]  # bed void fraction
-
-    if isotherm_type_1 == "Toth":
-        T_0 = 296  # Reference temperature (K)
-        n_s = 2.38 * np.exp(0 * (1 - temperature / T_0))  # mol/kg
-        b = 70.74 * np.exp(-1 * (-57047) / (R * T_0) * (1 - T_0 / temperature))  # kPa⁻¹
-        t = 0.4148 - 1.606 * (1 - T_0 / temperature)
-        pressure_kPa = pressure / 1000  # Convert pressure from Pa to kPa
-
-        load_kg = (
-            n_s * b * pressure_kPa * y1 / (1 + (b * pressure_kPa * y1) ** t) ** (1 / t)
-        )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -57047  # J/mol
-
-    elif isotherm_type_1 == "ModifiedToth":
-        T_0 = 296  # Reference temperature (K)
-        n2_mass = adsorption_isotherm_2(
-            pressure, temperature, y2, bed_properties, isotherm_type="GAB"
-        )[0] / (bed_density / (1 - ε))  # mol/kg
-        gamma = 0.0016  # kg/mol
-        beta = 59.1  # kg/mol
-        n_s = (
-            2.38 * np.exp(0 * (1 - temperature / T_0)) * (1 / (1 - gamma * n2_mass))
-        )  # mol/kg
-        b = (
-            70.74
-            * np.exp((-57047) / (R * T_0) * (T_0 / temperature - 1))
-            * (1 + beta * n2_mass)
-        )  # kPa⁻¹
-        t = 0.4148 - 1.606 * (1 - T_0 / temperature)
-
-        pressure_kPa = pressure / 1000  # Convert pressure from Pa to kPa
-
-        load_kg = (
-            n_s * b * pressure_kPa * y1 / (1 + (b * pressure_kPa * y1) ** t) ** (1 / t)
-        )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -57047  # J/mol
-
-    elif isotherm_type_1 == "Langmuir":
-        c1 = y1 * pressure / (R * temperature)  # mol/m3
-        c2 = y3 * pressure / (R * temperature)  # mol/m3
-        b1 = 8.65e-7 * np.exp(-(-36641.21) / (R * temperature))  # m3/mol
-        b2 = 2.5e-6 * np.exp(-(-1.58e4) / (R * temperature))  # m3/mol
-        d1 = 2.63e-8 * np.exp(-(-3590.66) / (R * temperature))  # m3/mol
-        d2 = 0
-
-        load_kg = 3.09 * b1 * c1 / (1 + b1 * c1 + b2 * c2) + 2.54 * d1 * c1 / (
-            1 + d1 * c1 + d2 * c2
-        )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -57047  # J/mol
-
-    elif isotherm_type_1 == "Dual_site Langmuir":
-        c1 = y1 * pressure / (R * temperature)  # mol/m3
-        b1 = 3.17e-6 * np.exp(-(-28.63e3) / (R * temperature))  # m3/mol
-        b2 = 3.21e-6 * np.exp(-(-20.37e3) / (R * temperature))  # m3/mol
-        qs1 = 0.44  # mol/kg
-        qs2 = 6.10
-
-        load_kg = qs1 * b1 * c1 / (1 + b1 * c1) + qs2 * b2 * c1 / (
-            1 + b2 * c1
-        )  # mol/kg
-
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = R * (
-            -3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"]) / bed_density
-        )  # J/mol
-
-    return load_m3, ΔH
-
-
-def adsorption_isotherm_2(
-    pressure, temperature, y2, bed_properties, isotherm_type="GAB"
-):
-    """
-    GAB isotherm for H₂O.
-
-    Returns:
-        equilibrium_loading (mol/m³ of solid)
-        adsorption_heat_2 (J/mol)
-    """
-    bed_density = bed_properties["bed_density"]  # kg/m³
-    ε = bed_properties["bed_voidage"]  # bed void fraction
-
-    if isotherm_type == "GAB":
-        K_ads = 0.5751  # -
-        c_m = 36.48  # mol/kg
-        c_G = 0.1489  # -
-
-        P_sat = 611.21 * np.exp(
-            (18.678 - ((temperature - 273.15) / 234.5))
-            * (temperature - 273.15)
-            / (temperature - 16.01)
-        )  # Tetens equation for water, Pa
-        RH = y2 * pressure / (P_sat)  # dimensionless
-
-        load_kg = (
-            c_m * c_G * K_ads * RH / ((1 - K_ads * RH) * (1 + (c_G - 1) * K_ads * RH))
-        )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-
-    elif isotherm_type == "None":
-        load_m3 = 0 * pressure
-
-    ΔH = -49000  # J/mol
-
-    return load_m3, ΔH
-
-
 # ============================================================
 # 4. PHYSICAL PROPERTY MODELS
 # ============================================================
@@ -445,14 +316,6 @@ def calculate_gas_viscosity():
     return 1.8e-5  # Pa·s
 
 
-def calculate_gas_thermal_conductivity():
-    return 0.1  # W/(m·K)
-
-
-def calculate_wall_thermal_conductivity():
-    return 205  # W/(m·K)
-
-
 def calculate_axial_dispersion_coefficient(bed_props, v_left):
     D_m = bed_props["molecular_diffusivity"]  # m²/s (molecular diffusion)
     v_0 = v_left
@@ -469,9 +332,7 @@ def relative_humidity_to_mole_fraction(RH, P, T):
     P_sat = 611.21 * np.exp(
         (18.678 - ((T - 273.15) / 234.5)) * (T - 273.15) / (T - 16.01)
     )  # Tetens equation for water, Pa
-    print("P_sat:", P_sat)
     y2 = RH * P_sat / P
-    print("y2:", y2)
     return y2
 
 
@@ -877,70 +738,6 @@ def create_quick_plot(time, result, title, y_label):
     plt.show()
 
 
-# Create a combined plot with all 6 variables
-def create_combined_plot(
-    time,
-    T_result,
-    P_result,
-    y1_result,
-    n1_result,
-    y1_walls_result,
-    v_walls_result,
-    bed_properties,
-):
-    """Create a combined plot with all 6 variables in subplots."""
-    fig, axes = plt.subplots(2, 3, figsize=(10, 5))
-    fig.suptitle("Adsorption Column Simulation Results", fontsize=20, fontweight="bold")
-
-    # Define the data and labels for each subplot
-    plot_data = [
-        (
-            y1_result,
-            "Gas phase CO2 against time",
-            "Gas Phase CO2 (mol fraction)",
-            axes[0, 2],
-        ),
-        (T_result, "Temperature against time", "Temperature (K)", axes[0, 0]),
-        (n1_result, "CO2 loading against time", "Loading CO2 (mol/m³)", axes[1, 0]),
-        (P_result, "Pressure against time", "Pressure (Pa)", axes[0, 1]),
-        (
-            y1_walls_result,
-            "Gas phase CO2 at exit against time",
-            "Gas Phase CO2 (mol fraction)",
-            axes[1, 1],
-        ),
-        (
-            v_walls_result
-            * 60
-            * 1e6
-            * bed_properties["column_area"]
-            * bed_properties["bed_voidage"],
-            "Outlet flow rate",
-            "Exit flowrate (cm³/s)",
-            axes[1, 2],
-        ),
-    ]
-
-    # Plot each variable
-    for result, title, ylabel, ax in plot_data[0:4]:
-        for idx, label in zip([0, 9, 29], ["First node", "Central node", "Final node"]):
-            ax.plot(
-                time, result[idx], label=label, linewidth=2, marker="o", markersize=3
-            )
-
-    for result, title, ylabel, ax in plot_data[4:]:
-        ax.plot(time, result[-1], linewidth=2, marker="o", markersize=3)
-
-        ax.set_title(title, fontsize=14, fontweight="bold")
-        ax.set_xlabel("Time (s)", fontsize=12)
-        ax.set_ylabel(ylabel, fontsize=12)
-        ax.legend(fontsize=10)
-        ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plt.show()
-
-
 def create_multi_plot(profiles, bed_properties):
     """
     Create a grid of subplots for multiple time series.
@@ -1068,14 +865,14 @@ def create_multi_plot(profiles, bed_properties):
     # 4. CO2 adsorbed
     ax = axes[3]
     ax.plot(time, adsorbed_CO2, label="CO2 Adsorbed (mid)", color="tab:blue")
-    ax.plot(
-        time_SB,
-        qCO2_SB,
-        label="Stampi-Bombelli",
-        color="black",
-        linestyle="--",
-        alpha=0.7,
-    )
+    # ax.plot(
+    #     time_SB,
+    #     qCO2_SB,
+    #     label="Stampi-Bombelli",
+    #     color="black",
+    #     linestyle="--",
+    #     alpha=0.7,
+    # )
     # ax.plot(time, equilibrium_CO2, label="CO2 Equilibrium (mid)", color="tab:orange", linestyle="--")
     ax.set_title("CO2 Adsorbed")
     ax.set_ylabel("CO2 Loading (mol/kg)")
@@ -1088,14 +885,14 @@ def create_multi_plot(profiles, bed_properties):
     # ax.plot(time, outlet_N2, label="N2 Outlet", color="tab:green")
     # ax.plot(time, outlet_O2, label="O2 Outlet", color="tab:orange")
     ax.plot(time, relative_humidity, label="Relative Humidity", color="tab:purple")
-    ax.plot(
-        time_SB5,
-        RH_SB,
-        label="WADST (Young et al.)",
-        color="black",
-        linestyle="--",
-        alpha=0.7,
-    )
+    # ax.plot(
+    #     time_SB5,
+    #     RH_SB,
+    #     label="WADST (Young et al.)",
+    #     color="black",
+    #     linestyle="--",
+    #     alpha=0.7,
+    # )
     ax.set_title("Relative Humidity")
     ax.set_ylabel("Relative Humidity")
     ax.legend()
@@ -1104,14 +901,14 @@ def create_multi_plot(profiles, bed_properties):
     # 6. H2O adsorbed
     ax = axes[5]
     ax.plot(time, adsorbed_H2O, label="H2O Adsorbed (mid)", color="tab:blue")
-    ax.plot(
-        time_SB3,
-        qH2O_SB,
-        label="WADST (Young et al.)",
-        color="black",
-        linestyle="--",
-        alpha=0.7,
-    )
+    # ax.plot(
+    #     time_SB3,
+    #     qH2O_SB,
+    #     label="WADST (Young et al.)",
+    #     color="black",
+    #     linestyle="--",
+    #     alpha=0.7,
+    # )
     ax.set_title("H2O Adsorbed")
     ax.set_ylabel("H2O Loading (mol/kg)")
     ax.legend()

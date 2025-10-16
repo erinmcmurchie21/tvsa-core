@@ -162,7 +162,10 @@ def calculate_cycle_kpis(
     MW_CO2 = bed_properties.get("MW_1", 44.01)  # g/mol
 
     # Product is from desorption stage
-    desorption_stage = stage_kpis_dict.get("steam_desorption", None)
+    desorption_stage = None
+    for key in ["steam_desorption", "desorption"]:
+        if key in stage_kpis_dict:
+            desorption_stage = stage_kpis_dict[key]
     if desorption_stage:
         total_CO2_captured = desorption_stage.CO2_out
     kg_CO2_captured = total_CO2_captured * MW_CO2 / 1000

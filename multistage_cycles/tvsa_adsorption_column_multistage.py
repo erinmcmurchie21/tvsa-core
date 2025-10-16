@@ -10,6 +10,7 @@ timestepper to be solved.
 import numpy as np
 import matplotlib as mpl
 import additional_functions_multistage as func
+import config_JY as cfg
 
 mpl.rcParams["mathtext.fontset"] = "cm"
 mpl.rcParams["mathtext.rm"] = "serif"
@@ -1179,23 +1180,23 @@ def ODE_calculations(
     # Solid phase balance for adsorbed components
     # ∂q₁/∂t = k₁(q₁* - q₁)
     dn1dt = k1 * (
-        func.adsorption_isotherm_1(
+        cfg.adsorption_isotherm_1(
             P, T, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1=isotherm_type_1
         )[0]
         - n1
     )  # mol / m3
-    deltaH_1 = func.adsorption_isotherm_1(
+    deltaH_1 = cfg.adsorption_isotherm_1(
         P, T, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1=isotherm_type_1
     )[1]  # Heat of adsorption (J/mol)
 
     # ∂q₂/∂t = k₂(q₂* - q₂)
     dn2dt = k2 * (
-        func.adsorption_isotherm_2(
+        cfg.adsorption_isotherm_2(
             P, T, y2, bed_properties, isotherm_type=isotherm_type_2
         )[0]
         - n2
     )
-    deltaH_2 = func.adsorption_isotherm_2(
+    deltaH_2 = cfg.adsorption_isotherm_2(
         P, T, y2, bed_properties, isotherm_type=isotherm_type_2
     )[1]  # Heat of adsorption (J/mol)
 
@@ -1213,7 +1214,7 @@ def ODE_calculations(
 
     # Thermal conductivities and heat transfer coefficients
     K_z = bed_properties["K_z"]
-    K_wall = func.calculate_wall_thermal_conductivity()
+    K_wall = bed_properties["K_wall"]
     h_bed, h_wall = (
         bed_properties["h_bed"],
         bed_properties["h_wall"],
