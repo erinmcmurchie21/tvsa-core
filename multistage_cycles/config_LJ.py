@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from additional_functions_multistage import (
-    create_non_uniform_grid, mole_fraction_to_relative_humidity,
+    create_non_uniform_grid, mole_fraction_to_relative_humidity
 )
 
 
@@ -14,83 +14,103 @@ def create_fixed_properties():
     """
     # Column dimensions and physical properties
     bed_properties = {
-        # Geometry
-        "bed_length": 0.01,  # Bed length [m]
-        "inner_bed_radius": 0.04,  # Inner radius [m]
-        "outer_bed_radius": 0.041,  # Outer radius [m]
-        "column_area": 0.04**2 * np.pi,  # Cross-sectional area [m²]
-        # Porosity and density
-        "bed_voidage": 0.0918,  # Bed voidage [-]
-        "particle_voidage": 0.9616,  # Particle voidage [-]
-        "total_voidage": 0.965,  # Total voidage [-]
-        "bed_density": 55.4,  # Bed density [kg/m³]
-        "sorbent_density": 61,  # Sorbent density [kg/m³]
-        "wall_density": 7800,  # Wall density [kg/m³]
+        # Geometry - FROM PAPER TABLE 1
+        "bed_length": 1.2,  # Bed length [m]
+        "inner_bed_radius": 0.015,  # Inner radius [m] 
+        "outer_bed_radius": 0.016,  # Outer radius [m] 
+        "column_area": 0.015**2 * np.pi,  # Cross-sectional area [m²]
+        
+        # Porosity and density - FROM PAPER TABLE 1 & CALCULATIONS
+        "bed_voidage": 0.3475,  # Bed voidage [-] 
+        "particle_voidage": 0.5401,  # Particle voidage [-] 
+        "total_voidage": 0.6999,  # Total voidage [-]
+        "bed_density": 708,  # Bed density [kg/m³]
+        "sorbent_density": 1085,  # Particle density [kg/m³]
+        "material_density": 2359,  # 13X material density [kg/m³] - ADDED from paper
+        "wall_density": 7800,  # Wall density [kg/m³] - NOT IN PAPER, REASONABLE for steel
+        
         # Transport properties
-        "tortuosity": 3,  # Tortuosity factor [-]
-        "molecular_diffusivity": 1.605e-5,  # Molecular diffusivity [m²/s]
-        "particle_diameter": 0.0075,  # Particle diameter [m]
+        "tortuosity": 3,  # Tortuosity factor [-] - NOT IN PAPER, KEEP ORIGINAL
+        "molecular_diffusivity": 1.605e-5,  # Molecular diffusivity [m²/s] - NOT IN PAPER
+        "particle_diameter": 0.002,  # Particle diameter [m]
         "K_z": 0.09,  # Axial dispersion coefficient [m²/s]
-        "K_wall": 205,  # Wall thermal conductivity [W/m·K]
+        "K_wall": 50,  # Wall thermal conductivity [W/m·K]
         "mu": 1.78e-5,  # Gas viscosity [Pa·s]
-        # Mass transfer coefficients
-        "mass_transfer_1": 0.0002,  # CO2 mass transfer coeff [s⁻¹]
-        "mass_transfer_2": 0.002,  # H2O mass transfer coeff [s⁻¹]
-        "mass_transfer_3": 0.00,  # N2 mass transfer coeff [s⁻¹]
-        # Heat transfer properties
-        "h_bed": 3,  # Bed heat transfer coeff [W/m²·K]
-        "h_wall": 26,  # Wall heat transfer coeff [W/m²·K]
-        "sorbent_heat_capacity": 2070,  # Solid heat capacity [J/kg·K]
-        "wall_heat_capacity": 513,  # Wall heat capacity [J/kg·K]
-        "heat_capacity_1": 42.46,  # CO2 adsorbed phase Cp [J/mol·K]
-        "heat_capacity_2": 73.1,  # H2O adsorbed phase Cp [J/mol·K]
-        "heat_capacity_3": 29.1,  # N2 adsorbed phase Cp [J/mol·K]
-        # Molecular weights
+        
+        # Mass transfer coefficients - FROM PAPER TABLE 1
+        "mass_transfer_1": 0.15,  # CO2 mass transfer coeff [s⁻¹] - CORRECTED from 0.0002
+        "mass_transfer_2": 0,  # N2 mass transfer coeff [s⁻¹] - ADDED from paper
+        "mass_transfer_3": 1.00,  # H2O mass transfer coeff [s⁻¹] - NOT USED IN PAPER
+        # Note: H2O not modeled in paper (dried upstream), so no k_H2O given
+        
+        # Heat transfer properties - FROM PAPER TABLE 1
+        "h_bed": 20,  # Bed heat transfer coeff [W/m²·K] - CORRECTED (wall/bed in paper)
+        "h_wall": 100,  # Wall heat transfer coeff [W/m²·K] - CORRECTED (fluid/wall in paper)
+        "sorbent_heat_capacity": 920,  # Solid heat capacity [J/kg·K] - CORRECTED from 2070
+        "wall_heat_capacity": 513,  # Wall heat capacity [J/kg·K] - KEEP (not clear in paper)
+        "wall_heat_capacity_volumetric": 4e6,  # Wall heat capacity [J/(K·m³)] - FROM PAPER
+        "heat_capacity_1": 42.46,  # CO2 adsorbed phase Cp [J/mol·K] - NOT IN PAPER
+        "heat_capacity_2": 73.1,  # H2O adsorbed phase Cp [J/mol·K] - NOT IN PAPER
+        "heat_capacity_3": 29.1,  # N2 adsorbed phase Cp [J/mol·K] - NOT IN PAPER
+        
+        # Molecular weights - STANDARD VALUES (correct in original)
         "MW_1": 44.01,  # CO2 [g/mol]
         "MW_2": 18.02,  # H2O [g/mol]
         "MW_3": 28.02,  # N2 [g/mol]
         "MW_4": 32.00,  # O2 [g/mol]
+        
         # Thermodynamic properties
         "R": 8.314,  # Universal gas constant [J/mol·K]
-        "k": 1.4,  # Heat capacity ratio [-]
-        "ambient_temperature": 293.15,  # Ambient temperature [K]
-        "ambient_pressure": 100000,  # Ambient pressure [Pa]
-        # Optimisation parameters
-        "desorption_temperature": 368.15,  # Desorption temperature [K]
-        "vacuum_pressure": 5000,  # Vacuum pressure [Pa]
-        "adsorption_time": 13772,  # Adsorption time [s]
-        "blowdown_time": 30,  # Blowdown time [s]
-        "heating_time": 704,  # Heating time [s]
-        "desorption_time": 30000,  # Desorption time [s]
-        "pressurisation_time": 50,  # Pressurisation time [s]
-        # Adsorption isotherms
-        "isotherm_type_1": "ModifiedToth",  # CO2 isotherm type
-        "isotherm_type_2": "GAB",  # H2O isotherm type
-        "isotherm_type_3": "None",  # N2 isotherm type
+        "k": 1.4,  # Heat capacity ratio [-] - NOT IN PAPER
+        "ambient_temperature": 300,  # Ambient temperature [K] - NOT IN PAPER
+        "ambient_pressure": 100000,  # Ambient pressure [Pa] - CORRECTED to 1.3 bar from paper
+        
+        # Adsorption isotherms - FROM PAPER TABLE 1
+        "isotherm_type_1": "BinarySips",  # CO2 isotherm type - CORRECTED from ModifiedToth
+        "isotherm_type_2": "None",  
+        "isotherm_type_3": "BinarySips",  # N2 isotherm type - ADDED
         # Reference values for scaling (dimensionless variables)
-        "P_ref": 101325,  # Reference pressure [Pa]
-        "T_ref": 298.15,  # Reference temperature [K]
-        "n_ref": 3000,  # Reference adsorbed amount [mol/m³]
-        # Water properties
-        "Cp_water": 4181.3,  # Heat capacity of water [J/kg.K]
-        "Cp_steam": 2010,  # Heat capacity of steam [J/kg.K]
+        "P_ref": 101325,  # Reference pressure [Pa] - NOT IN PAPER
+        "T_ref": 298.15,  # Reference temperature [K] - NOT IN PAPER
+        "n_ref": 3000,  # Reference adsorbed amount [mol/m³] - NOT IN PAPER
+        
+        # Water properties - NOT USED IN PAPER (dried upstream)
+        "Cp_water": 4181.3,  # Heat capacity of water [J/kg·K]
+        "Cp_steam": 2010,  # Heat capacity of steam [J/kg·K]
         "vaporization_energy": 2257e3,  # Latent heat of vaporization for water [J/kg]
-        # Calculated properties
-        "sorbent_mass": 0.01 * 0.04**2 * np.pi * 55.4,  # [kg]
-        "sorbent_volume": 0.01 * 0.04**2 * np.pi * (1 - 0.96),  # [m³]
-        "bed_volume": 0.01 * 0.04**2 * np.pi,  # [m³]
+        
+        # Calculated properties - NEED TO RECALCULATE with new dimensions
+        "sorbent_mass": 1.2 * 0.015**2 * np.pi * 708,  # [kg] - UPDATED
+        "sorbent_volume": 1.2 * 0.015**2 * np.pi * (1 - 0.70),  # [m³] - UPDATED
+        "bed_volume": 1.2 * 0.015**2 * np.pi,  # [m³] - UPDATED
+        
         # Efficiencies
-        "compressor_efficiency": 0.75,  # Compressor efficiency
-        "fan_efficiency": 0.5,  # Fan efficiency
-        # Feed conditions
-        "feed_velocity": 50 / 1e6 / 0.04**2 * np.pi,  # Superficial feed velocity [m/s]
-        "feed_temperature": 293.15,  # Feed temperature [K]
-        "steam_velocity": 25 / 1e6 / 0.04**2 * np.pi, #0.0025,  # Superficial steam velocity [m/s]
-        "steam_temperature": 368.15,  # Steam temperature [K]
+        "compressor_efficiency": 0.75,  # Compressor efficiency - NOT IN PAPER
+        "fan_efficiency": 0.5,  # Fan efficiency - NOT IN PAPER
+
+         # Optimisation parameters - FROM PAPER (Table 2, Run 1 for Cycle D as example)
+        "desorption_temperature": 420,  # Desorption/heating temperature [K] - CORRECTED
+        "cooling_temperature": 300,  # Cooling temperature [K] - ADDED from paper
+        "vacuum_pressure": 1e5,  # Vacuum pressure [Pa]
+        "adsorption_time": 300,  # Adsorption time [s] - Example from Table 2, Run 1
+        "desorption_time": 2100,  # Desorption time [s] - NOT USED IN PAPER
+        "cooling_time": 1450,  # Cooling time [s] - Example from Table 2
+        "pressurisation_time": 50,  # Pressurisation time [s] - NOT USED IN PAPER
+        
+        
+        # Feed conditions - FROM PAPER TABLE 1
+        "feed_velocity": 0.50,  # Superficial feed velocity [m/s]
+        "feed_temperature": 303,  # Feed temperature [K]
+        "feed_pressure": 100000,  # Feed pressure [Pa] - 1.3 bar from paper
+        "feed_flow_rate": 3.5e-4,  # Feed flow rate [m³/s] - FROM PAPER TABLE 1
+        "steam_velocity": 0.025,  # Superficial steam velocity [m/s] - NOT IN PAPER
+        "steam_temperature": 368.15,  # Steam temperature [K] - NOT USED IN PAPER
+        
+        # Feed composition - FROM PAPER (flue gas, not ambient air!)
         "feed_composition": {
-            "y1": 0.0004,
-            "y2": 0.0115,
-            "y3": 0.9881,
+            "y1": 0.12,  # CO2 - CORRECTED from 0.0004 (12% not 400 ppm!)
+            "y2": 0.00,  # H2O 
+            "y3": 0.88,  # N2 
         },
         "steam_composition": {
             "y1": 1e-6,
@@ -103,32 +123,17 @@ def create_fixed_properties():
                 "right": "pressure",
                 "direction": "forwards",
             },
-            "blowdown": {
-                "left": "closed",
-                "right": "pressure",
-                "direction": "forwards",
-            },
-            "heating": {"left": "closed", "right": "pressure", "direction": "forwards"},
             "desorption": {
                 "left": "closed",
                 "right": "pressure",
                 "direction": "forwards",
             },
-            "steam_desorption": {
-                "left": "mass_flow",
-                "right": "pressure",
-                "direction": "forwards",
-            },
-            "pressurisation": {
-                "left": "pressure",
-                "right": "closed",
-                "direction": "forwards",
-            },
             "cooling": {
-                "left": "mass_flow",
+                "left": "closed",
                 "right": "closed",
                 "direction": "forwards",
             },
+            
         },
     }
 
@@ -139,11 +144,11 @@ def create_fixed_properties():
     num_cells = column_grid["num_cells"]
 
     # Initial conditions: ambient pressure, temperature, and composition
-    y2_feed = 0.0115
+    y2_feed = 10e-5
     P_init = np.ones(num_cells) * 100000  # Pressure [Pa]
     T_init = np.ones(num_cells) * 293.15  # Gas temperature [K]
     Tw_init = np.ones(num_cells) * 293.15  # Wall temperature [K]
-    y1_init = np.ones(num_cells) * 400e-6 / (1 - y2_feed)  # CO2 mole fraction
+    y1_init = np.ones(num_cells) * 400e-6  # CO2 mole fraction
     y2_init = np.ones(num_cells) * y2_feed  # H2O mole fraction
     y3_init = np.ones(num_cells) * 0.95  # N2 mole fraction
 
@@ -155,7 +160,7 @@ def create_fixed_properties():
         y2_init,
         y3_init,
         400e-6,
-        0.0115,
+        y2_feed,
         bed_properties=bed_properties,
         isotherm_type_1=bed_properties["isotherm_type_1"],
     )[0]
@@ -172,8 +177,8 @@ def create_fixed_properties():
         y1_init,
         y2_init,
         y3_init,
-        n1_init,
-        n2_init,
+        400e-6,
+        y2_feed,
         bed_properties=bed_properties,
         isotherm_type_3=bed_properties["isotherm_type_3"],
     )[0]
@@ -248,79 +253,29 @@ def adsorption_isotherm_1(
     bed_density = bed_properties["bed_density"]  # kg/m³
     ε = bed_properties["bed_voidage"]  # bed void fraction
 
-    if isotherm_type_1 == "Toth":
-        T_0 = 296  # Reference temperature (K)
-        n_s = 2.38 * np.exp(0 * (1 - temperature / T_0))  # mol/kg
-        b = 70.74 * np.exp(-1 * (-57047) / (R * T_0) * (1 - T_0 / temperature))  # kPa⁻¹
-        t = 0.4148 - 1.606 * (1 - T_0 / temperature)
-        pressure_kPa = pressure / 1000  # Convert pressure from Pa to kPa
-
-        load_kg = (
-            n_s * b * pressure_kPa * y1 / (1 + (b * pressure_kPa * y1) ** t) ** (1 / t)
-        )  # mol/kg
+    if isotherm_type_1 == "BinarySips":
+        T_0 = 298.15  # reference temperature [K]
+        X_CO2 = -0.61684  # [-]
+        n_inf = 7.268 * np.exp( X_CO2 * (temperature / T_0 - 1 )) # mol/kg Sips isotherm constant
+        Qb_CO2 = 28.389  # J/mol
+        b_CO2 = 1.129e-4 * np.exp(Qb_CO2 / (R * temperature)) #  -1
+        p_CO2 = pressure * y1 / 1e5 # bar
+        alpha_CO2 = 0.72378 # [-]
+        c_CO2 = 0.42456 + alpha_CO2 * (temperature / T_0 - 1 ) # [-]
+        Qb_N2 = 18.474  # J/mol
+        b_N2 = 5.847e-5 * np.exp(Qb_N2 / (R * temperature))
+        p_N2 = y3 * pressure / 1e5 # bar
+        alpha_N2 = 0 # [-]
+        c_N2 = 0.98624 + alpha_N2 * (temperature / T_0 - 1 ) # [-]
+        load_kg = n_inf * ( (b_CO2 * p_CO2) ** (c_CO2) ) / (1 + (b_CO2 * p_CO2) ** (c_CO2) + (b_N2 * p_N2) ** (c_N2) )  # mol/kg
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -57047  # J/mol
-
-    elif isotherm_type_1 == "ModifiedToth":
-        T_0 = 296  # Reference temperature (K)
-        n2_mass = adsorption_isotherm_2(
-            pressure, temperature, y2, bed_properties, isotherm_type="GAB"
-        )[0] / (bed_density / (1 - ε))  # mol/kg
-        gamma = 0.0016  # kg/mol
-        beta = 59.1  # kg/mol
-        n_s = (
-            2.38 * np.exp(0 * (1 - temperature / T_0)) * (1 / (1 - gamma * n2_mass))
-        )  # mol/kg
-        b = (
-            70.74
-            * np.exp((-57047) / (R * T_0) * (T_0 / temperature - 1))
-            * (1 + beta * n2_mass)
-        )  # kPa⁻¹
-        t = 0.4148 - 1.606 * (1 - T_0 / temperature)
-
-        pressure_kPa = pressure / 1000  # Convert pressure from Pa to kPa
-
-        load_kg = (
-            n_s * b * pressure_kPa * y1 / (1 + (b * pressure_kPa * y1) ** t) ** (1 / t)
-        )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -57047  # J/mol
-
-    elif isotherm_type_1 == "Langmuir":
-        c1 = y1 * pressure / (R * temperature)  # mol/m3
-        c2 = y3 * pressure / (R * temperature)  # mol/m3
-        b1 = 8.65e-7 * np.exp(-(-36641.21) / (R * temperature))  # m3/mol
-        b2 = 2.5e-6 * np.exp(-(-1.58e4) / (R * temperature))  # m3/mol
-        d1 = 2.63e-8 * np.exp(-(-3590.66) / (R * temperature))  # m3/mol
-        d2 = 0
-
-        load_kg = 3.09 * b1 * c1 / (1 + b1 * c1 + b2 * c2) + 2.54 * d1 * c1 / (
-            1 + d1 * c1 + d2 * c2
-        )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -57047  # J/mol
-
-    elif isotherm_type_1 == "Dual_site Langmuir":
-        c1 = y1 * pressure / (R * temperature)  # mol/m3
-        b1 = 3.17e-6 * np.exp(-(-28.63e3) / (R * temperature))  # m3/mol
-        b2 = 3.21e-6 * np.exp(-(-20.37e3) / (R * temperature))  # m3/mol
-        qs1 = 0.44  # mol/kg
-        qs2 = 6.10
-
-        load_kg = qs1 * b1 * c1 / (1 + b1 * c1) + qs2 * b2 * c1 / (
-            1 + b2 * c1
-        )  # mol/kg
-
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = R * (
-            -3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"]) / bed_density
-        )  # J/mol
+        ΔH = -37000  # J/mol
 
     return load_m3, ΔH
 
 
 def adsorption_isotherm_2(
-    pressure, temperature, y2, bed_properties, isotherm_type="GAB"
+    pressure, temperature, y2, bed_properties, isotherm_type="None"
 ):
     """
     GAB isotherm for H₂O.
@@ -356,9 +311,8 @@ def adsorption_isotherm_2(
 
     return load_m3, ΔH
 
-
 def adsorption_isotherm_3(
-    pressure, temperature, y1, y2, y3, n1, n2, bed_properties, isotherm_type_3="None"
+    pressure, temperature, y1, y2, y3, n1, n2, bed_properties, isotherm_type_3="BinarySips"
 ):
     """
     Toth isotherm for CO₂ on solid sorbent.
@@ -371,11 +325,26 @@ def adsorption_isotherm_3(
     bed_density = bed_properties["bed_density"]  # kg/m³
     ε = bed_properties["bed_voidage"]  # bed void fraction
 
-    if isotherm_type_3 == "None":
-        load_m3 = 0 * pressure
-        ΔH = 0
+    if isotherm_type_3 == "BinarySips":
+        T_0 = 298.15  # reference temperature [K]
+        X_N2 = 0
+        n_inf = 4.051 * np.exp( X_N2 * (temperature / T_0 - 1 )) # Sips isotherm constant
+        Qb_CO2 = 28.389  # J/mol
+        b_CO2 = 1.129e-4 * np.exp(Qb_CO2 / (R * temperature)) #  -1
+        p_CO2 = y1 * pressure / 1e5
+        alpha_CO2 = 0.72378
+        c_CO2 = 0.42456 + alpha_CO2 * (temperature / T_0 - 1 )
+        Qb_N2 = 18.474  # J/mol
+        b_N2 = 5.847e-5 * np.exp(Qb_N2 / (R * temperature))  #  -1
+        p_N2 = y3 * pressure / 1e5
+        alpha_N2 = 0
+        c_N2 = 0.98624 + alpha_N2 * (temperature / T_0 - 1 )
+        load_kg = n_inf * ( (b_N2 * p_N2) ** (c_N2) ) / (1 + (b_CO2 * p_CO2) ** (c_CO2) + (b_N2 * p_N2) ** (c_N2) )  # mol/kg
+        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        ΔH = -18500  # J/mol
 
     return load_m3, ΔH
+
 
 
 def create_multi_plot(profiles, bed_properties):
@@ -392,67 +361,6 @@ def create_multi_plot(profiles, bed_properties):
         Size of the whole figure
     """
     # Import data
-
-    time_SB = np.loadtxt(
-        "multistage_cycles/VSB_profiles/stampi-bombelli_qCO2.csv",
-        delimiter=",",
-        usecols=0,
-    )  # First column
-    qCO2_SB = np.loadtxt(
-        "multistage_cycles/VSB_profiles/stampi-bombelli_qCO2.csv",
-        delimiter=",",
-        usecols=1,
-    )  # Second column
-
-    #time_SB2 = np.loadtxt('multistage_cycles/VSB_profiles/stampi-bombelli_yCO2.csv', delimiter=',', usecols=0)  # First column
-    #yCO2_SB = np.loadtxt('multistage_cycles/VSB_profiles/stampi-bombelli_yCO2.csv', delimiter=',', usecols=1)  # Second column
-
-    time_SB3 = np.loadtxt(
-        "multistage_cycles/VSB_profiles/stampi-bombelli_qH2O.csv",
-        delimiter=",",
-        usecols=0,
-    )  # First column
-    qH2O_SB = np.loadtxt(
-        "multistage_cycles/VSB_profiles/stampi-bombelli_qH2O.csv",
-        delimiter=",",
-        usecols=1,
-    )  # Second column
-
-    time_SB4 = np.loadtxt(
-        "multistage_cycles/VSB_profiles/stampi-bombelli_temp.csv",
-        delimiter=",",
-        usecols=0,
-    )  # First column
-    temp_SB = (
-        np.loadtxt(
-            "multistage_cycles/VSB_profiles/stampi-bombelli_temp.csv",
-            delimiter=",",
-            usecols=1,
-        )
-        + 273.15
-    )  # Second column
-
-    time_SB5 = np.loadtxt(
-        "multistage_cycles/VSB_profiles/stampi-bombelli_RH.csv",
-        delimiter=",",
-        usecols=0,
-    )  # First column
-    RH_SB = np.loadtxt(
-        "multistage_cycles/VSB_profiles/stampi-bombelli_RH.csv",
-        delimiter=",",
-        usecols=1,
-    )  # Second column
-
-    time_SB6 = np.loadtxt(
-        "multistage_cycles/VSB_profiles/stampi-bombelli_outletpressure.csv",
-        delimiter=",",
-        usecols=0,
-    )  # First column
-    pressure_SB = np.loadtxt(
-        "multistage_cycles/VSB_profiles/stampi-bombelli_outletpressure.csv",
-        delimiter=",",
-        usecols=1,
-    )# Second column
 
     time = profiles["time"]
     T_gas = np.array(profiles["temperature"])
@@ -482,14 +390,13 @@ def create_multi_plot(profiles, bed_properties):
     ax = axes[0]
     ax.plot(time, T_gas, label="Gas Temp (mid)", color="tab:blue")
     ax.plot(time, T_wall, label="Wall Temp (mid)", color="tab:orange")
-    ax.plot(
-        time_SB4,
-        temp_SB,
-        label="WADST (Young et al.)",
-        color="black",
-        linestyle="--",
-        alpha=0.7,
-    )
+    # ax.plot(
+    #     time_4,
+    #     temp,
+    #     color="black",
+    #     linestyle="--",
+    #     alpha=0.7,
+    # )
     ax.set_title("Temperature Profiles")
     ax.set_ylabel("Temperature (K)")
     ax.legend()
@@ -499,13 +406,13 @@ def create_multi_plot(profiles, bed_properties):
     ax = axes[1]
     ax.plot(time, P_inlet, label="Inlet Pressure", color="tab:green")
     ax.plot(time, P_outlet, label="Outlet Pressure", color="tab:red")
-    ax.plot(
-        time_SB6,
-        pressure_SB,
-        color="black",
-        linestyle="--",
-        alpha=0.7,
-    )
+    # ax.plot(
+    #     time_6,
+    #     pressure,
+    #     color="black",
+    #     linestyle="--",
+    #     alpha=0.7,
+    # )
     ax.set_title("Pressure Profiles")
     ax.set_ylabel("Pressure (Pa)")
     ax.legend()
@@ -523,14 +430,13 @@ def create_multi_plot(profiles, bed_properties):
     # 4. CO2 adsorbed
     ax = axes[3]
     ax.plot(time, adsorbed_CO2, label="CO2 Adsorbed (mid)", color="tab:blue")
-    ax.plot(
-         time_SB,
-         qCO2_SB,
-         label="Modified Toth (Stampi-Bombelli)",
-         color="black",
-         linestyle="--",
-         alpha=0.7,
-    )
+    # ax.plot(
+    #      time,
+    #      qCO2,
+    #      color="black",
+    #      linestyle="--",
+    #      alpha=0.7,
+    # )
     ax.set_title("CO2 Adsorbed")
     ax.set_ylabel("CO2 Loading (mol/kg)")
     ax.legend()
@@ -542,14 +448,13 @@ def create_multi_plot(profiles, bed_properties):
     # ax.plot(time, outlet_N2, label="N2 Outlet", color="tab:green")
     # ax.plot(time, outlet_O2, label="O2 Outlet", color="tab:orange")
     ax.plot(time, relative_humidity, label="Relative Humidity", color="tab:purple")
-    ax.plot(
-        time_SB5,
-        RH_SB,
-        # label="Modified GAB (Stampi-Bombelli)",
-        color="black",
-        linestyle="--",
-        alpha=0.7,
-    )
+    # ax.plot(
+    #     time_5,
+    #     RH,
+    #     color="black",
+    #     linestyle="--",
+    #     alpha=0.7,
+    # )
     ax.set_title("Relative Humidity")
     ax.set_ylabel("Relative Humidity")
     ax.legend()
@@ -558,14 +463,14 @@ def create_multi_plot(profiles, bed_properties):
     # 6. H2O adsorbed
     ax = axes[5]
     ax.plot(time, adsorbed_H2O, label="H2O Adsorbed (mid)", color="tab:blue")
-    ax.plot(
-        time_SB3,
-        qH2O_SB,
-        label="GAB (Stampi-Bombelli)",
-        color="black",
-        linestyle="--",
-        alpha=0.7,
-    )
+    # ax.plot(
+    #     time,
+    #     qH2O,
+        
+    #     color="black",
+    #     linestyle="--",
+    #     alpha=0.7,
+    # )
     ax.set_title("H2O Adsorbed")
     ax.set_ylabel("H2O Loading (mol/kg)")
     ax.legend()
@@ -579,11 +484,8 @@ def create_multi_plot(profiles, bed_properties):
     # Define stage durations (must match your run_cycle stages)
     stage_durations = [
         bed_properties["adsorption_time"],
-        bed_properties["blowdown_time"],
-        bed_properties["heating_time"],
         bed_properties["desorption_time"],
-        bed_properties["pressurisation_time"],
-        # Add cooling time if used
+        bed_properties["cooling_time"],
     ]
     stage_start_times = [0]
     for dur in stage_durations[:-1]:

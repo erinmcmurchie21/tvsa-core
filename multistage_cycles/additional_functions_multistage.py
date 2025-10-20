@@ -2,7 +2,6 @@ import numpy as np
 import scipy.integrate
 import matplotlib.pyplot as plt
 import scipy.sparse as sps
-import config_JY as cfg
 
 # ============================================================
 # 1. GRID DEFINITION
@@ -378,7 +377,7 @@ def H2O_boiling_point(P):
 # ============================================================
 
 
-def total_mass_balance_error(F, P, T, n1, n2, time, bed_props, grid):
+def total_mass_balance_error(F, P, T, n1, n2, n3, time, bed_props, grid):
     """
     Returns % mass balance error for total moles.
     """

@@ -178,10 +178,11 @@ def calculate_cycle_kpis(
         dry_content_carrier_gas = desorption_stage.N2_out + desorption_stage.O2_out
 
     # Calculate CO2 fed
+    total_CO2_fed = 0.0
     for stage_name in ["adsorption", "pressurisation"]:
         if stage_name in stage_kpis_dict:
             stage = stage_kpis_dict[stage_name]
-            total_CO2_fed = stage.CO2_in
+            total_CO2_fed += stage.CO2_in
 
     # Performance metrics
     purity_wet = total_CO2_captured / (total_CO2_captured + total_carrier_gas)

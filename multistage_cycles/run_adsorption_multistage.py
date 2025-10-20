@@ -3,7 +3,6 @@ from scipy.integrate import solve_ivp
 from additional_functions_multistage import (
     create_non_uniform_grid,
     total_mass_balance_error,
-    create_multi_plot,
     create_quick_plot,
     cycle_error,
     plot_all_profiles,
@@ -17,10 +16,9 @@ from kpi_calculations import (
     print_stage_kpis,
     print_cycle_kpis,
 )
-from config_JY import (
+from config_LJ import (
     create_fixed_properties,
-    adsorption_isotherm_1,
-    adsorption_isotherm_2,
+    create_multi_plot,
 )
 
 """
@@ -43,7 +41,6 @@ Components: (1) CO2, (2) H2O, (3) N2, (4) O2
 # ============================================================================
 # BOUNDARY CONDITIONS FOR EACH STAGE
 # ============================================================================
-
 
 def define_stage_conditions(stage, bed_properties, pressure_left, pressure_right):
     """
@@ -212,14 +209,23 @@ def run_stage(
         )
 
     # Solve the ODE system
-    if stage in ["blowdown", "heating"]:
-        max_step = 0.1  # maximum time step in seconds
-        first_step = 1e-6  # initial time step in seconds
+    if stage == "adsorption":
+        max_step = 0.1
+        first_step = 1e-6
     elif stage == "blowdown":
         max_step = 5.0
         first_step = 1e-6
-    elif stage == "adsorption":
-        max_step = 10
+    elif stage == "heating":
+        max_step = 1.0  # maximum time step in seconds
+        first_step = 1e-6  # initial time step in seconds
+    elif stage == "steam_desorption":
+        max_step = 0.1
+        first_step = 1e-6
+    elif stage == "desorption":
+        max_step = 1.0
+        first_step = 1e-6
+    elif stage == "cooling":
+        max_step = 0.1
         first_step = 1e-6
     else:
         max_step = np.inf
@@ -255,8 +261,9 @@ def run_stage(
     y3_result = output_matrix.y[5 * num_cells : 6 * num_cells]
     n1_result = output_matrix.y[6 * num_cells : 7 * num_cells] * bed_properties["n_ref"]
     n2_result = output_matrix.y[7 * num_cells : 8 * num_cells] * bed_properties["n_ref"]
-    F_result = output_matrix.y[8 * num_cells : 8 * num_cells + 8]
-    E_result = output_matrix.y[8 * num_cells + 8 :]
+    n3_result = output_matrix.y[8 * num_cells : 9 * num_cells] * bed_properties["n_ref"]
+    F_result = output_matrix.y[9 * num_cells : 9 * num_cells + 8]
+    E_result = output_matrix.y[9 * num_cells + 8 :]
     time_array = output_matrix.t
 
     # Calculate mass balance error for validation
@@ -266,6 +273,7 @@ def run_stage(
         T_result,
         n1_result,
         n2_result,
+        n3_result,
         time_array,
         bed_properties,
         column_grid,
@@ -299,6 +307,7 @@ def run_stage(
     y3_final = y3_result[:, -1]
     n1_final = n1_result[:, -1]
     n2_final = n2_result[:, -1]
+    n3_final = n3_result[:, -1]
     F_final = np.zeros(8)  # F_result[:, -1]
     E_final = np.zeros(7)  # E_result[:, -1]
     P_walls_final = P_walls_result[:, -1]
@@ -314,6 +323,7 @@ def run_stage(
             y3_final,
             n1_final / bed_properties["n_ref"],
             n2_final / bed_properties["n_ref"],
+            n3_final / bed_properties["n_ref"],
             F_final,
             E_final,
         ]
@@ -331,6 +341,7 @@ def run_stage(
         "y3_result": y3_result,
         "n1_result": n1_result,
         "n2_result": n2_result,
+        "n3_result": n3_result,
         "P_walls_result": P_walls_result,
     }
 
@@ -486,7 +497,7 @@ def run_cycle(n_cycles):
                 profile_data["P_walls_result"][-1, :]
             )
             cycle_profiles["outlet_CO2"].extend(profile_data["y1_result"][-1, :])
-            cycle_profiles["adsorbed_CO2"].extend(profile_data["n1_result"][-1, :])
+            cycle_profiles["adsorbed_CO2"].extend(profile_data["n1_result"][midpoint, :])
             cycle_profiles["wall_temperature"].extend(profile_data["Tw_result"][-1, :])
             cycle_profiles["adsorbed_H2O"].extend(profile_data["n2_result"][-1, :])
             cycle_profiles["outlet_H2O"].extend(profile_data["y2_result"][-1, :])
@@ -552,7 +563,7 @@ def main():
 
     # Run simulation
     print("Starting TVSA simulation...")
-    n_cycles = 10
+    n_cycles = 1
 
     simulation_results = run_cycle(n_cycles)
 
@@ -563,12 +574,11 @@ def main():
     # Unpack results
     profiles, all_cycle_kpis, all_cycle_errors = simulation_results
 
+    stage_config = bed_properties["stage_config"]
     stages = [
-        ("adsorption", [0, bed_properties["adsorption_time"]]),
-        ("blowdown", [0, bed_properties["blowdown_time"]]),
-        ("heating", [0, bed_properties["heating_time"]]),
-        ("steam_desorption", [0, bed_properties["desorption_time"]]),
-        ("pressurisation", [0, bed_properties["pressurisation_time"]]),
+        (stage, [0, bed_properties[f"{stage}_time"]])
+        for stage in stage_config.keys()
+        if f"{stage}_time" in bed_properties
     ]
     stage_change_times = np.cumsum([t[1] for _, t in stages])
     stage_names = [name for name, _ in stages]
@@ -581,13 +591,13 @@ def main():
         "Cycle Convergence",
         "Log₁₀(Cycle Error)",
     )
-    plot_all_profiles(
-        np.array(profiles["time"]),
-        profiles,
-        stage_change_times,
-        stage_names,
-        bed_properties,
-    )
+    # plot_all_profiles(
+    #     np.array(profiles["time"]),
+    #     profiles,
+    #     stage_change_times,
+    #     stage_names,
+    #     bed_properties,
+    # )
     print("\nSimulation completed successfully!")
 
     def save_profile_data(profiles, output_dir="profiles"):

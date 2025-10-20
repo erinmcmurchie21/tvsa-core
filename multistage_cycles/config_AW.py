@@ -84,9 +84,9 @@ def create_fixed_properties():
         "steam_velocity": 0.025,  # Superficial steam velocity [m/s]
         "steam_temperature": 368.15,  # Steam temperature [K]
         "feed_composition": {
-            "y1": 0.0004 / (1 - 0.0115),
+            "y1": 0.0004 ,
             "y2": 0.0115,
-            "y3": 0.9881 / (1 - 0.0115),
+            "y3": 0.9881 ,
         },
         "steam_composition": {
             "y1": 1e-6,

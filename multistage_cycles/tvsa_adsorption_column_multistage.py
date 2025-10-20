@@ -10,7 +10,7 @@ timestepper to be solved.
 import numpy as np
 import matplotlib as mpl
 import additional_functions_multistage as func
-import config_JY as cfg
+import config_LJ as cfg
 
 mpl.rcParams["mathtext.fontset"] = "cm"
 mpl.rcParams["mathtext.rm"] = "serif"
@@ -54,12 +54,15 @@ def data_prep(results_vector, num_cells, bed_properties):
     n2 = (
         results_vector[7 * num_cells : 8 * num_cells] * bed_properties["n_ref"]
     )  # H2O adsorbed concentration
+    n3 = (
+        results_vector[8 * num_cells : 9 * num_cells] * bed_properties["n_ref"]
+    )  # N2 adsorbed concentration
     F = results_vector[
-        8 * num_cells : 8 * num_cells + 8
+        9 * num_cells : 9 * num_cells + 8
     ]  # Flow tracking (8 components)
-    E = results_vector[8 * num_cells + 8 :]  # Energy tracking (2 components)
+    E = results_vector[9 * num_cells + 8 :]  # Energy tracking (2 components)
 
-    return P, T, Tw, y1, y2, y3, n1, n2, F, E
+    return P, T, Tw, y1, y2, y3, n1, n2, n3, F, E
 
 
 def flip_column(results_vector, num_cells, bed_properties):
@@ -83,10 +86,13 @@ def flip_column(results_vector, num_cells, bed_properties):
     n2 = (
         results_vector[7 * num_cells : 8 * num_cells] * bed_properties["n_ref"]
     )  # H2O adsorbed concentration
+    n3 = (
+        results_vector[8 * num_cells : 9 * num_cells] * bed_properties["n_ref"]
+    )  # N2 adsorbed concentration
     F = results_vector[
-        8 * num_cells : 8 * num_cells + 8
+        9 * num_cells : 9 * num_cells + 8
     ]  # Flow tracking (8 components)
-    E = results_vector[8 * num_cells + 8 :]
+    E = results_vector[9 * num_cells + 8 :]
 
     P = P[::-1]
     T = T[::-1]
@@ -96,10 +102,11 @@ def flip_column(results_vector, num_cells, bed_properties):
     y3 = y3[::-1]
     n1 = n1[::-1]
     n2 = n2[::-1]
+    n3 = n3[::-1]
     F = F[::-1]
     E = E[::-1]  # Energy tracking (2 components)
 
-    return P, T, Tw, y1, y2, y3, n1, n2, F, E
+    return P, T, Tw, y1, y2, y3, n1, n2, n3, F, E
 
 
 def left_boundary_conditions(
@@ -1053,11 +1060,11 @@ def ODE_calculations(
     # Split results vector into individual variables
 
     if column_direction == "forwards":
-        P, T, Tw, y1, y2, y3, n1, n2, F, E = data_prep(
+        P, T, Tw, y1, y2, y3, n1, n2, n3, F, E = data_prep(
             results_vector, num_cells, bed_properties
         )
     elif column_direction == "reverse":
-        P, T, Tw, y1, y2, y3, n1, n2, F, E = flip_column(
+        P, T, Tw, y1, y2, y3, n1, n2, n3, F, E = flip_column(
             results_vector, num_cells, bed_properties
         )
 
@@ -1174,8 +1181,10 @@ def ODE_calculations(
     # Mass transfer constants
     isotherm_type_1 = bed_properties["isotherm_type_1"]
     isotherm_type_2 = bed_properties["isotherm_type_2"]
+    isotherm_type_3 = bed_properties["isotherm_type_3"]
     k1 = bed_properties["mass_transfer_1"]
     k2 = bed_properties["mass_transfer_2"]
+    k3 = bed_properties["mass_transfer_3"]
 
     # Solid phase balance for adsorbed components
     # ∂q₁/∂t = k₁(q₁* - q₁)
@@ -1198,6 +1207,16 @@ def ODE_calculations(
     )
     deltaH_2 = cfg.adsorption_isotherm_2(
         P, T, y2, bed_properties, isotherm_type=isotherm_type_2
+    )[1]  # Heat of adsorption (J/mol)
+
+    dn3dt = k3 * (
+        cfg.adsorption_isotherm_3(
+            P, T, y1, y2, y3, n1, n2, bed_properties, isotherm_type_3=isotherm_type_3
+        )[0]
+        - n3
+    )
+    deltaH_3 = cfg.adsorption_isotherm_3(
+        P, T, y1, y2, y3, n1, n2, bed_properties, isotherm_type_3=isotherm_type_3
     )[1]  # Heat of adsorption (J/mol)
 
     # =========================================================================
@@ -1230,7 +1249,7 @@ def ODE_calculations(
     a_2 = (
         bed_properties["total_voidage"] * P / (bed_properties["R"] * T) * Cp_g
         + bed_properties["bed_density"] * Cp_solid
-        + (1 - bed_properties["bed_voidage"]) * (Cp_1 * n1 + Cp_2 * n2)
+        + (1 - bed_properties["bed_voidage"]) * (Cp_1 * n1 + Cp_2 * n2 + Cp_3 * n3)
         - bed_properties["total_voidage"] * P / T
     )
 
@@ -1265,11 +1284,11 @@ def ODE_calculations(
     )
 
     adsorption_heat_term = +(1 - bed_properties["bed_voidage"]) * (
-        (np.abs(deltaH_1)) * dn1dt + (np.abs(deltaH_2)) * dn2dt
+        (np.abs(deltaH_1)) * dn1dt + (np.abs(deltaH_2)) * dn2dt + (np.abs(deltaH_3)) * dn3dt
     )
 
     adsorbent_heat_term = (
-        -(1 - bed_properties["bed_voidage"]) * T * (Cp_1 * dn1dt + Cp_2 * dn2dt)
+        -(1 - bed_properties["bed_voidage"]) * T * (Cp_1 * dn1dt + Cp_2 * dn2dt + Cp_3 * dn3dt)
     )
 
     heat_transfer_term = -2 * h_bed * (T - Tw) / (bed_properties["inner_bed_radius"])
@@ -1357,7 +1376,7 @@ def ODE_calculations(
         / bed_properties["total_voidage"]
         * bed_properties["R"]
         * T
-        * (dn1dt + dn2dt)
+        * (dn1dt + dn2dt + dn3dt)
     )
     convective_term = (
         -T
@@ -1504,7 +1523,7 @@ def ODE_calculations(
     # \\  + D_l \  \frac{T}{P} \ \frac{1}{\Delta z} \left( \frac{P_{i+1/2}}{T_{i+1/2}} \ \frac{y_{2,i+1} - y_{2,i}}{\Delta z} - \frac{P_{i-1/2}}{T_{i-1/2}} \ \frac{y_{2,i} - y_{2,i-1}}{\Delta z}\right)"""
 
     # Component 3 (non-adsorbing)
-    dy3dt = calculate_component_balance(y3, y3_walls, y3_all)
+    dy3dt = calculate_component_balance(y3, y3_walls, y3_all, dn3dt)
     # """ \dfrac{\partial y_3}{\partial t} = \dfrac{y_3}{P}\dfrac{\partial P}{\partial t} + \dfrac{y_3}{T}\dfrac{\partial T}{\partial t}
     # - \frac{1}{\varepsilon}\frac{T}{P}\frac{1}{\Delta z} \left( \frac{P_{i+1/2} \ y_{3,i+1/2} \ v_{i+1/2}}{T_{i+1/2}}-\frac{P_{i-1/2} \ y_{3,i-1/2} \ v_{i-1/2}}{T_{i-1/2}} \right)
     # \\ + D_l \  \frac{T}{P} \ \frac{1}{\Delta z} \left( \frac{P_{i+1/2}}{T_{i+1/2}} \ \frac{y_{3,i+1} - y_{3,i}}{\Delta z} - \frac{P_{i-1/2}}{T_{i-1/2}} \ \frac{y_{3,i} - y_{3,i-1}}{\Delta z}\right)"""
@@ -1687,6 +1706,7 @@ def ODE_calculations(
                 dy3dt,
                 dn1dt / bed_properties["n_ref"],
                 dn2dt / bed_properties["n_ref"],
+                dn3dt / bed_properties["n_ref"],
                 dFdt,
                 dEdt,
             ]
@@ -1700,6 +1720,7 @@ def ODE_calculations(
         y3 = np.flip(y3)
         n1 = np.flip(n1)
         n2 = np.flip(n2)
+        n3 = np.flip(n3)
         F = np.flip(F)
         E = np.flip(E)
         derivatives = np.concatenate(
@@ -1712,12 +1733,12 @@ def ODE_calculations(
                 dy3dt,
                 dn1dt / bed_properties["n_ref"],
                 dn2dt / bed_properties["n_ref"],
+                dn3dt / bed_properties["n_ref"],
                 dFdt,
                 dEdt,
             ]
         )
     # Combine derivatives into a single vector
-
     return derivatives
 
 
@@ -1748,7 +1769,7 @@ def final_wall_values(
         # Get state vector at timestep t
 
         # Unpack variables from the state
-        P, T, Tw, y1, y2, y3, n1, n2, F, E = data_prep(
+        P, T, Tw, y1, y2, y3, n1, n2, n3, F, E = data_prep(
             output_matrix.y[:, t], num_cells, bed_properties
         )
 
