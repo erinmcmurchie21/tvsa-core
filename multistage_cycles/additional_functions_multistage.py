@@ -267,6 +267,7 @@ def pressure_ramp_2(t, stage, pressure_previous_step, bed_properties):
     tau = 0.11
     ambient_pressure = bed_properties["ambient_pressure"]
     vacuum_pressure = bed_properties["vacuum_pressure"]
+    pressurisation_pressure = bed_properties["pressurisation_pressure"]
     P = None
     dPdz = None
     if stage == "adsorption":
@@ -280,7 +281,7 @@ def pressure_ramp_2(t, stage, pressure_previous_step, bed_properties):
         dPdz = None
     elif stage == "pressurisation":
         P = None
-        dPdz = -tau * (ambient_pressure - pressure_previous_step)
+        dPdz = -tau * (pressurisation_pressure - pressure_previous_step)
     return P, dPdz
 
 

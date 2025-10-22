@@ -63,7 +63,7 @@ def create_fixed_properties():
         "R": 8.314,  # Universal gas constant [J/mol·K]
         "k": 1.4,  # Heat capacity ratio [-] - NOT IN PAPER
         "ambient_temperature": 300,  # Ambient temperature [K] - NOT IN PAPER
-        "ambient_pressure": 100000,  # Ambient pressure [Pa] - CORRECTED to 1.3 bar from paper
+        "ambient_pressure": 101325,  # Ambient pressure [Pa] - CORRECTED to 1.3 bar from paper
         
         # Adsorption isotherms - FROM PAPER TABLE 1
         "isotherm_type_1": "BinarySips",  # CO2 isotherm type - CORRECTED from ModifiedToth
@@ -91,7 +91,8 @@ def create_fixed_properties():
          # Optimisation parameters - FROM PAPER (Table 2, Run 1 for Cycle D as example)
         "desorption_temperature": 420,  # Desorption/heating temperature [K] - CORRECTED
         "cooling_temperature": 300,  # Cooling temperature [K] - ADDED from paper
-        "vacuum_pressure": 1e5,  # Vacuum pressure [Pa]
+        "vacuum_pressure": 101325,  # Vacuum pressure [Pa]
+        "pressurisation_pressure": 102000,  # Pressurisation pressure [Pa] - 1.3 bar from paper
         "adsorption_time": 300,  # Adsorption time [s] - Example from Table 2, Run 1
         "desorption_time": 2100,  # Desorption time [s] - NOT USED IN PAPER
         "cooling_time": 1450,  # Cooling time [s] - Example from Table 2
@@ -101,14 +102,14 @@ def create_fixed_properties():
         # Feed conditions - FROM PAPER TABLE 1
         "feed_velocity": 0.50,  # Superficial feed velocity [m/s]
         "feed_temperature": 303,  # Feed temperature [K]
-        "feed_pressure": 100000,  # Feed pressure [Pa] - 1.3 bar from paper
+        "feed_pressure": 130000,  # Feed pressure [Pa] - 1.3 bar from paper
         "feed_flow_rate": 3.5e-4,  # Feed flow rate [m³/s] - FROM PAPER TABLE 1
         "steam_velocity": 0.025,  # Superficial steam velocity [m/s] - NOT IN PAPER
         "steam_temperature": 368.15,  # Steam temperature [K] - NOT USED IN PAPER
         
         # Feed composition - FROM PAPER (flue gas, not ambient air!)
         "feed_composition": {
-            "y1": 0.12,  # CO2 - CORRECTED from 0.0004 (12% not 400 ppm!)
+            "y1": 0.12,  # CO2 
             "y2": 0.00,  # H2O 
             "y3": 0.88,  # N2 
         },
@@ -133,7 +134,12 @@ def create_fixed_properties():
                 "right": "closed",
                 "direction": "forwards",
             },
-            
+            "pressurisation": {
+                "left": "pressure",
+                "right": "closed",
+                "direction": "forwards",
+            },
+
         },
     }
 
@@ -144,13 +150,13 @@ def create_fixed_properties():
     num_cells = column_grid["num_cells"]
 
     # Initial conditions: ambient pressure, temperature, and composition
-    y2_feed = 10e-5
+    y2_feed = 1e-6
     P_init = np.ones(num_cells) * 100000  # Pressure [Pa]
-    T_init = np.ones(num_cells) * 293.15  # Gas temperature [K]
-    Tw_init = np.ones(num_cells) * 293.15  # Wall temperature [K]
-    y1_init = np.ones(num_cells) * 400e-6  # CO2 mole fraction
+    T_init = np.ones(num_cells) * 303  # Gas temperature [K]
+    Tw_init = np.ones(num_cells) * 303  # Wall temperature [K]
+    y1_init = np.ones(num_cells) * 0.12  # CO2 mole fraction
     y2_init = np.ones(num_cells) * y2_feed  # H2O mole fraction
-    y3_init = np.ones(num_cells) * 0.95  # N2 mole fraction
+    y3_init = np.ones(num_cells) * 0.87  # N2 mole fraction
 
     # Calculate initial adsorbed amounts from equilibrium isotherms
     n1_init = adsorption_isotherm_1(
@@ -159,7 +165,7 @@ def create_fixed_properties():
         y1_init,
         y2_init,
         y3_init,
-        400e-6,
+        0.12,
         y2_feed,
         bed_properties=bed_properties,
         isotherm_type_1=bed_properties["isotherm_type_1"],
@@ -177,7 +183,7 @@ def create_fixed_properties():
         y1_init,
         y2_init,
         y3_init,
-        400e-6,
+        0.12,
         y2_feed,
         bed_properties=bed_properties,
         isotherm_type_3=bed_properties["isotherm_type_3"],
@@ -205,15 +211,15 @@ def create_fixed_properties():
     )
 
     # Solver tolerance settings
-    rtol = 1e-5  # Relative tolerance
+    rtol = 1e-6  # Relative tolerance
 
     # Absolute tolerances for different variable types
     atol_P = 1e-4 * np.ones(len(P_init))  # Pressure
     atol_T = 1e-4 * np.ones(len(T_init))  # Temperature
     atol_Tw = 1e-4 * np.ones(len(Tw_init))  # Wall temperature
-    atol_y1 = 1e-8 * np.ones(len(y1_init))  # CO2 mole fraction
+    atol_y1 = 1e-12 * np.ones(len(y1_init))  # CO2 mole fraction
     atol_y2 = 1e-8 * np.ones(len(y2_init))  # H2O mole fraction
-    atol_y3 = 1e-8 * np.ones(len(y3_init))  # N2 mole fraction
+    atol_y3 = 1e-12 * np.ones(len(y3_init))  # N2 mole fraction
     atol_n1 = 1e-3 * np.ones(len(n1_init))  # CO2 adsorbed amount
     atol_n2 = 1e-3 * np.ones(len(n2_init))  # H2O adsorbed amount
     atol_n3 = 1e-3 * np.ones(len(n3_init))  # N2 adsorbed amount
@@ -257,12 +263,12 @@ def adsorption_isotherm_1(
         T_0 = 298.15  # reference temperature [K]
         X_CO2 = -0.61684  # [-]
         n_inf = 7.268 * np.exp( X_CO2 * (temperature / T_0 - 1 )) # mol/kg Sips isotherm constant
-        Qb_CO2 = 28.389  # J/mol
+        Qb_CO2 = 28389  # J/mol
         b_CO2 = 1.129e-4 * np.exp(Qb_CO2 / (R * temperature)) #  -1
         p_CO2 = pressure * y1 / 1e5 # bar
         alpha_CO2 = 0.72378 # [-]
         c_CO2 = 0.42456 + alpha_CO2 * (temperature / T_0 - 1 ) # [-]
-        Qb_N2 = 18.474  # J/mol
+        Qb_N2 = 18474  # J/mol
         b_N2 = 5.847e-5 * np.exp(Qb_N2 / (R * temperature))
         p_N2 = y3 * pressure / 1e5 # bar
         alpha_N2 = 0 # [-]
@@ -287,24 +293,7 @@ def adsorption_isotherm_2(
     bed_density = bed_properties["bed_density"]  # kg/m³
     ε = bed_properties["bed_voidage"]  # bed void fraction
 
-    if isotherm_type == "GAB":
-        K_ads = 0.5751  # -
-        c_m = 36.48  # mol/kg
-        c_G = 0.1489  # -
-
-        P_sat = 611.21 * np.exp(
-            (18.678 - ((temperature - 273.15) / 234.5))
-            * (temperature - 273.15)
-            / (temperature - 16.01)
-        )  # Tetens equation for water, Pa
-        RH = y2 * pressure / (P_sat)  # dimensionless
-
-        load_kg = (
-            c_m * c_G * K_ads * RH / ((1 - K_ads * RH) * (1 + (c_G - 1) * K_ads * RH))
-        )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-
-    elif isotherm_type == "None":
+    if isotherm_type == "None":
         load_m3 = 0 * pressure
 
     ΔH = -49000  # J/mol
@@ -329,12 +318,12 @@ def adsorption_isotherm_3(
         T_0 = 298.15  # reference temperature [K]
         X_N2 = 0
         n_inf = 4.051 * np.exp( X_N2 * (temperature / T_0 - 1 )) # Sips isotherm constant
-        Qb_CO2 = 28.389  # J/mol
-        b_CO2 = 1.129e-4 * np.exp(Qb_CO2 / (R * temperature)) #  -1
-        p_CO2 = y1 * pressure / 1e5
+        Qb_CO2 = 28389  # J/mol
+        b_CO2 = 1.129e-4 * np.exp(Qb_CO2 / (R * temperature)) #  bar-1
+        p_CO2 = y1 * pressure / 1e5 #bar
         alpha_CO2 = 0.72378
         c_CO2 = 0.42456 + alpha_CO2 * (temperature / T_0 - 1 )
-        Qb_N2 = 18.474  # J/mol
+        Qb_N2 = 18474  # J/mol
         b_N2 = 5.847e-5 * np.exp(Qb_N2 / (R * temperature))  #  -1
         p_N2 = y3 * pressure / 1e5
         alpha_N2 = 0
@@ -371,7 +360,7 @@ def create_multi_plot(profiles, bed_properties):
     outlet_H2O = np.array(profiles["outlet_H2O"])
     adsorbed_CO2 = np.array(profiles["adsorbed_CO2"])
     adsorbed_H2O = np.array(profiles["adsorbed_H2O"])
-    # outlet_N2 = np.array(profiles["outlet_N2"])
+    outlet_N2 = np.array(profiles["outlet_N2"])
     # outlet_O2 = np.array(profiles["outlet_O2"])
     # equilibrium_CO2 = np.array(profiles["equilibrium_CO2"])
 
@@ -447,7 +436,7 @@ def create_multi_plot(profiles, bed_properties):
     # x.plot(time, outlet_H2O, label="H2O Outlet", color="tab:purple")
     # ax.plot(time, outlet_N2, label="N2 Outlet", color="tab:green")
     # ax.plot(time, outlet_O2, label="O2 Outlet", color="tab:orange")
-    ax.plot(time, relative_humidity, label="Relative Humidity", color="tab:purple")
+    ax.plot(time, outlet_N2, label="N2 Outlet", color="tab:purple")
     # ax.plot(
     #     time_5,
     #     RH,
@@ -455,14 +444,14 @@ def create_multi_plot(profiles, bed_properties):
     #     linestyle="--",
     #     alpha=0.7,
     # )
-    ax.set_title("Relative Humidity")
+    ax.set_title("N2 Gas Phase")
     ax.set_ylabel("Relative Humidity")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
     # 6. H2O adsorbed
     ax = axes[5]
-    ax.plot(time, adsorbed_H2O, label="H2O Adsorbed (mid)", color="tab:blue")
+    #ax.plot(time, adsorbed_H2O, label="H2O Adsorbed (mid)", color="tab:blue")
     # ax.plot(
     #     time,
     #     qH2O,

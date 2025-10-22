@@ -48,6 +48,9 @@ def data_prep(results_vector, num_cells, bed_properties):
     y1 = results_vector[3 * num_cells : 4 * num_cells]  # CO2 mole fraction
     y2 = results_vector[4 * num_cells : 5 * num_cells]  # H2O mole fraction
     y3 = results_vector[5 * num_cells : 6 * num_cells]  # N2 mole fraction
+    y1 = np.maximum(y1, 0 * y1)
+    y2 = np.maximum(y2, 0 * y2)
+    y3 = np.maximum(y3, 0 * y3)
     n1 = (
         results_vector[6 * num_cells : 7 * num_cells] * bed_properties["n_ref"]
     )  # CO2 adsorbed concentration

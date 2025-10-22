@@ -210,23 +210,23 @@ def run_stage(
 
     # Solve the ODE system
     if stage == "adsorption":
-        max_step = 0.1
-        first_step = 1e-6
-    elif stage == "blowdown":
-        max_step = 5.0
-        first_step = 1e-6
-    elif stage == "heating":
-        max_step = 1.0  # maximum time step in seconds
-        first_step = 1e-6  # initial time step in seconds
-    elif stage == "steam_desorption":
-        max_step = 0.1
-        first_step = 1e-6
-    elif stage == "desorption":
         max_step = 1.0
         first_step = 1e-6
-    elif stage == "cooling":
-        max_step = 0.1
-        first_step = 1e-6
+    # elif stage == "blowdown":
+    #     max_step = 5.0
+    #     first_step = 1e-6
+    # elif stage == "heating":
+    #     max_step = 1.0  # maximum time step in seconds
+    #     first_step = 1e-6  # initial time step in seconds
+    # elif stage == "steam_desorption":
+    #     max_step = 0.1
+    #     first_step = 1e-6
+    # elif stage == "desorption":
+    #     max_step = 1.0
+    #     first_step = 1e-6
+    # elif stage == "cooling":
+    #     max_step = 0.1
+    #     first_step = 1e-6
     else:
         max_step = np.inf
         first_step = None
@@ -473,6 +473,42 @@ def run_cycle(n_cycles):
                 profile_data,
             ) = stage_results
 
+
+            # import matplotlib.pyplot as plt
+            # plt.figure()
+            # plt.plot(time_array, profile_data["T_result"][-1, :], marker="o")
+            # plt.xlabel("Time (s)")
+            # plt.ylabel("Temperature (K)")
+            # plt.title("Temperature vs Time")
+            # plt.grid(True)
+
+            # # 2. Outlet pressure vs time
+            # plt.figure()
+            # plt.plot(time_array, profile_data["P_result"][-1, :], marker="o")
+            # plt.xlabel("Time (s)")
+            # plt.ylabel("Outlet Pressure (Pa)")
+            # plt.title("Outlet Pressure vs Time")
+            # plt.grid(True)
+
+            # # 3. Central node CO2 loading vs time
+            # q1 = np.array(profile_data["n1_result"][-1, :]) / bed_properties["bed_density"] * (1 - bed_properties["bed_voidage"])  # mol
+            # plt.figure()
+            # plt.plot(time_array, q1, marker="o")
+            # plt.xlabel("Time (s)")
+            # plt.ylabel("CO2 Loading (kg/mol)")
+            # plt.title("CO2 Loading vs Time")
+            # plt.grid(True)
+
+            # # 4. Outlet CO₂ fraction vs time
+            # plt.figure()
+            # plt.plot(time_array, profile_data["y1_result"][-1, :], marker="o")
+            # plt.xlabel("Time (s)")
+            # plt.ylabel("Outlet CO₂ Mole Fraction")
+            # plt.title("Outlet CO₂ Fraction vs Time")
+            # plt.grid(True)
+
+            # plt.show()
+
             # CALCULATE STAGE KPIs
             stage_kpis_dict[stage_name] = calculate_stage_kpis(
                 stage_name,
@@ -563,7 +599,7 @@ def main():
 
     # Run simulation
     print("Starting TVSA simulation...")
-    n_cycles = 1
+    n_cycles = 2
 
     simulation_results = run_cycle(n_cycles)
 

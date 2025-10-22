@@ -163,6 +163,7 @@ def adsorption_isotherm_1(
     y2,
     y3,
     n1,
+    n2,
     bed_properties,
     isotherm_type_1="Dual_site Langmuir",
 ):
@@ -177,34 +178,7 @@ def adsorption_isotherm_1(
     bed_density = bed_properties["bed_density"]  # kg/m³
     ε = bed_properties["bed_voidage"]  # bed void fraction
 
-    if isotherm_type_1 == "Toth":
-        T_0 = 296  # Reference temperature (K)
-        n_s = 2.38 * np.exp(0 * (1 - temperature / T_0))  # mol/kg
-        b = 70.74 * np.exp(-1 * (-57047) / (R * T_0) * (1 - T_0 / temperature))  # kPa⁻¹
-        t = 0.4148 - 1.606 * (1 - T_0 / temperature)
-        pressure_kPa = pressure / 1000  # Convert pressure from Pa to kPa
-
-        load_kg = (
-            n_s * b * pressure_kPa * y1 / (1 + (b * pressure_kPa * y1) ** t) ** (1 / t)
-        )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -57047  # J/mol
-
-    elif isotherm_type_1 == "Langmuir":
-        c1 = y1 * pressure / (R * temperature)  # mol/m3
-        c2 = y3 * pressure / (R * temperature)  # mol/m3
-        b1 = 8.65e-7 * np.exp(-(-36641.21) / (R * temperature))  # m3/mol
-        b2 = 2.5e-6 * np.exp(-(-1.58e4) / (R * temperature))  # m3/mol
-        d1 = 2.63e-8 * np.exp(-(-3590.66) / (R * temperature))  # m3/mol
-        d2 = 0
-
-        load_kg = 3.09 * b1 * c1 / (1 + b1 * c1 + b2 * c2) + 2.54 * d1 * c1 / (
-            1 + d1 * c1 + d2 * c2
-        )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
-        ΔH = -57047  # J/mol
-
-    elif isotherm_type_1 == "Dual_site Langmuir":
+    if isotherm_type_1 == "Dual_site Langmuir":
         c1 = y1 * pressure / (R * temperature)  # mol/m3
         b1 = 3.17e-6 * np.exp(-(-28.63e3) / (R * temperature))  # m3/mol
         b2 = 3.21e-6 * np.exp(-(-20.37e3) / (R * temperature))  # m3/mol
@@ -219,12 +193,12 @@ def adsorption_isotherm_1(
         ΔH = R * (
             -3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"]) / bed_density
         )  # J/mol
-
+        
     return load_m3, ΔH
 
 
 def adsorption_isotherm_2(
-    pressure, temperature, y2, bed_properties, isotherm_type="None"
+    pressure, temperature, y2, bed_properties, isotherm_type_2="None"
 ):
     """
     GAB isotherm for H₂O.
@@ -237,7 +211,7 @@ def adsorption_isotherm_2(
     bed_density = bed_properties["bed_density"]  # kg/m³
     ε = bed_properties["bed_voidage"]  # bed void fraction
 
-    if isotherm_type == "GAB":
+    if isotherm_type_2 == "GAB":
         K_ads = 0.5751  # -
         c_m = 36.48  # mol/kg
         c_G = 0.1489  # -
@@ -253,10 +227,39 @@ def adsorption_isotherm_2(
         )  # mol/kg
         load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
 
-    elif isotherm_type == "None":
+    elif isotherm_type_2 == "None":
         load_m3 = 0 * pressure
 
     ΔH = -49000  # J/mol
+
+    return load_m3, ΔH
+
+def adsorption_isotherm_3(
+    pressure,
+    temperature,
+    y1,
+    y2,
+    y3,
+    n1,
+    n2,
+    bed_properties,
+    isotherm_type_3="None",
+):
+    """
+    GAB isotherm for H₂O.
+
+    Returns:
+        equilibrium_loading (mol/m³ of solid)
+        adsorption_heat_2 (J/mol)
+    """
+    R = 8.314  # J/mol·K
+    bed_density = bed_properties["bed_density"]  # kg/m³
+    ε = bed_properties["bed_voidage"]  # bed void fraction
+
+    if isotherm_type_3 == "None":
+        load_m3 = 0 * pressure
+
+    ΔH = 0  # J/mol
 
     return load_m3, ΔH
 
@@ -269,22 +272,25 @@ def adsorption_isotherm_2(
 def calculate_gas_heat_capacity():
     return 840 * 44.01 / 1000  # J/mol·K (approx. for air/CO2)
 
-
-def heat_transfer_coefficient():
-    return 140, 20  # W/m²·K (bed, wall)
-
-
-def calculate_gas_viscosity():
-    return 1.8e-5  # Pa·s
-
-
-def calculate_wall_thermal_conductivity():
-    return 205  # W/(m·K)
+def H2O_boiling_point(P):
+    """Calculate boiling point of water at pressure P (Pa) using Antoine equation."""
+    P_mmHg = P / 133.322  # Convert Pa to mmHg
+    A = 8.07131
+    B = 1730.63
+    C = 233.426
+    T_bp_C = B / (A - np.log10(P_mmHg)) - C  # Boiling point in °C
+    T_bp_K = T_bp_C + 273.15  # Convert to Kelvin
+    return T_bp_K
 
 
 def calculate_axial_dispersion_coefficient(bed_props, inlet_vals):
     D_m = bed_props["molecular_diffusivity"]  # m²/s (molecular diffusion)
-    v_0 = inlet_vals["velocity"]
+    v_0 = (100
+        / 60
+        / 1e6
+        / bed_props["column_area"]
+        / bed_props["bed_voidage"]
+    )
     d_p = bed_props["particle_diameter"]
     return 0.7 * D_m + (0.5 * v_0 * d_p)
 
@@ -341,7 +347,7 @@ def CO2_mass_balance_error(F, P, T, y1, n1, time, bed_props, grid):
     return np.abs(mole_in - mole_out - mole_acc) / np.abs(mole_acc) * 100
 
 
-def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid):
+def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, n3, Tw, time, bed_props, grid):
     """
     Returns % energy balance error.
     """
@@ -354,6 +360,7 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid)
     bed_density = bed_props["bed_density"]  # kg/m³
     Cp_1 = bed_props["heat_capacity_1"]  # J/(mol*K)
     Cp_2 = bed_props["heat_capacity_2"]  # J/(mol*K)
+    Cp_3 = bed_props["heat_capacity_3"]  # J/(mol*K)
 
     # Energy terms
     heat_in = E[0, -1]
@@ -363,6 +370,7 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid)
         P[:, -1], T[:, -1], y1[:, -1], y2[:, -1], y3[:, -1], n1[:, -1], bed_props
     )[1]
     ΔH2 = adsorption_isotherm_2(P[:, -1], T[:, -1], y2[:, -1], bed_props)[1]
+    ΔH3 = adsorption_isotherm_3(P[:, -1], T[:, -1], y3[:, -1], bed_props)[1]
 
     heat_gen = (
         (1 - ε)
@@ -371,6 +379,7 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid)
             (
                 np.abs(ΔH1) * (n1[:, -1] - n1[:, 0])
                 + np.abs(ΔH2) * (n2[:, -1] - n2[:, 0])
+                + np.abs(ΔH3) * (n3[:, -1] - n3[:, 0])
             ),
             x=z,
         )
@@ -393,8 +402,8 @@ def energy_balance_error(E, T, P, y1, y2, y3, n1, n2, Tw, time, bed_props, grid)
         * A
         * scipy.integrate.trapezoid(
             (
-                (Cp_1 * n1[:, -1] + Cp_2 * n2[:, -1]) * T[:, -1]
-                - (Cp_1 * n1[:, 0] + Cp_2 * n2[:, 0]) * T[:, 0]
+                (Cp_1 * n1[:, -1] + Cp_2 * n2[:, -1] + Cp_3 * n3[:, -1]) * T[:, -1]
+                - (Cp_1 * n1[:, 0] + Cp_2 * n2[:, 0] + Cp_3 * n3[:, 0]) * T[:, 0]
             ),
             z,
         )
