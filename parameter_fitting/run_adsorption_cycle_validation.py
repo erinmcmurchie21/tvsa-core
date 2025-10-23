@@ -260,7 +260,7 @@ if __name__ == "__main__":
     y3_result = Y[5 * column_grid["num_cells"] : 6 * column_grid["num_cells"]]
     n1_result = Y[6 * column_grid["num_cells"] : 7 * column_grid["num_cells"]] * bed_properties["n_ref"]
     n2_result = Y[7 * column_grid["num_cells"] : 8 * column_grid["num_cells"]] * bed_properties["n_ref"]
-    n3_result = bed_properties["rho_gas_initial"] * Y[8 * column_grid["num_cells"] : 9 * column_grid["num_cells"]] * bed_properties["n_ref"]
+    n3_result = Y[8 * column_grid["num_cells"] : 9 * column_grid["num_cells"]] * bed_properties["n_ref"]
     F_result = Y[8 * column_grid["num_cells"] : 8 * column_grid["num_cells"] + 8]
     E_result = Y[8 * column_grid["num_cells"] + 8 :]
     

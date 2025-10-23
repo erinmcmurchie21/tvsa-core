@@ -50,6 +50,9 @@ def data_prep(results_vector, num_cells, bed_properties):
     y1 = np.maximum(y1, 0 * y1)
     y2 = np.maximum(y2, 0 * y2)
     y3 = np.maximum(y3, 0 * y3)
+    y1 = np.minimum(y1, np.ones(len(y1)))
+    y2 = np.minimum(y2, np.ones(len(y2)))
+    y3 = np.minimum(y3, np.ones(len(y3)))
     n1 = (
         results_vector[6 * num_cells : 7 * num_cells] * bed_properties["n_ref"]
     )  # CO2 adsorbed concentration
@@ -980,6 +983,9 @@ def calculate_internal_wall_values(
 
     if np.any(dominant < 0):
         print("Final P_walls values before error:", P_walls)
+        print("Final y1_walls values before error:", y1_walls)
+        print("Final y2_walls values before error:", y2_walls)
+        print("Final y3_walls values before error:", y3_walls)
         raise ValueError(
             "Negative value under square root in velocity calculation. Check your inputs and boundary conditions."
         )

@@ -323,7 +323,7 @@ if __name__ == "__main__":
         disp=True,
         init="sobol",
         updating="immediate",
-        workers=1,
+        workers=-1,
     )
 
     print(f"Success: {result.success}")
