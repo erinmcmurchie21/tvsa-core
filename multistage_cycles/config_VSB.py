@@ -120,7 +120,7 @@ def create_fixed_properties():
                 "direction": "forwards",
             },
             "pressurisation": {
-                "left": "pressure",
+                "left": "inlet_pressure",
                 "right": "closed",
                 "direction": "forwards",
             },

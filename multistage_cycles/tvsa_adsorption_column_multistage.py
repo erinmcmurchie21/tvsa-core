@@ -10,7 +10,7 @@ timestepper to be solved.
 import numpy as np
 import matplotlib as mpl
 import additional_functions_multistage as func
-import config_LJ as cfg
+
 
 mpl.rcParams["mathtext.fontset"] = "cm"
 mpl.rcParams["mathtext.rm"] = "serif"
@@ -48,9 +48,12 @@ def data_prep(results_vector, num_cells, bed_properties):
     y1 = results_vector[3 * num_cells : 4 * num_cells]  # CO2 mole fraction
     y2 = results_vector[4 * num_cells : 5 * num_cells]  # H2O mole fraction
     y3 = results_vector[5 * num_cells : 6 * num_cells]  # N2 mole fraction
-    y1 = np.maximum(y1, 0 * y1)
-    y2 = np.maximum(y2, 0 * y2)
-    y3 = np.maximum(y3, 0 * y3)
+    y1 = np.maximum(y1, np.zeros(len(y1)))
+    y2 = np.maximum(y2, np.zeros(len(y2)))
+    y3 = np.maximum(y3, np.zeros(len(y3)))
+    y1 = np.minimum(y1, np.ones(len(y1)))
+    y2 = np.minimum(y2, np.ones(len(y2)))
+    y3 = np.minimum(y3, np.ones(len(y3)))
     n1 = (
         results_vector[6 * num_cells : 7 * num_cells] * bed_properties["n_ref"]
     )  # CO2 adsorbed concentration
@@ -1026,6 +1029,7 @@ def ODE_calculations(
     column_direction,
     stage,
     P_initial,
+    config
 ):
     """
     Calculate the ODEs for the adsorption column model.
@@ -1192,33 +1196,33 @@ def ODE_calculations(
     # Solid phase balance for adsorbed components
     # ∂q₁/∂t = k₁(q₁* - q₁)
     dn1dt = k1 * (
-        cfg.adsorption_isotherm_1(
+        config.adsorption_isotherm_1(
             P, T, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1=isotherm_type_1
         )[0]
         - n1
     )  # mol / m3
-    deltaH_1 = cfg.adsorption_isotherm_1(
+    deltaH_1 = config.adsorption_isotherm_1(
         P, T, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1=isotherm_type_1
     )[1]  # Heat of adsorption (J/mol)
 
     # ∂q₂/∂t = k₂(q₂* - q₂)
     dn2dt = k2 * (
-        cfg.adsorption_isotherm_2(
+        config.adsorption_isotherm_2(
             P, T, y2, bed_properties, isotherm_type=isotherm_type_2
         )[0]
         - n2
     )
-    deltaH_2 = cfg.adsorption_isotherm_2(
+    deltaH_2 = config.adsorption_isotherm_2(
         P, T, y2, bed_properties, isotherm_type=isotherm_type_2
     )[1]  # Heat of adsorption (J/mol)
 
     dn3dt = k3 * (
-        cfg.adsorption_isotherm_3(
+        config.adsorption_isotherm_3(
             P, T, y1, y2, y3, n1, n2, bed_properties, isotherm_type_3=isotherm_type_3
         )[0]
         - n3
     )
-    deltaH_3 = cfg.adsorption_isotherm_3(
+    deltaH_3 = config.adsorption_isotherm_3(
         P, T, y1, y2, y3, n1, n2, bed_properties, isotherm_type_3=isotherm_type_3
     )[1]  # Heat of adsorption (J/mol)
 
@@ -1228,6 +1232,7 @@ def ODE_calculations(
 
     # Heat capacities
     Cp_g = func.calculate_gas_heat_capacity(y1, y2, y3, T)  # J/(mol*K)
+    
     Cp_solid = bed_properties["sorbent_heat_capacity"]  # J/(kg*K)
     Cp_1 = Cp_g  # bed_properties["heat_capacity_1"] # J/(mol*K)
     Cp_2 = Cp_g  # bed_properties["heat_capacity_2"] # J/(mol*K)
@@ -1426,7 +1431,7 @@ def ODE_calculations(
         -2
         * bed_properties["outer_bed_radius"]
         * h_wall
-        * (Tw - bed_properties["ambient_temperature"])
+        * (Tw - bed_properties["outside_temperature"])
         / (
             bed_properties["outer_bed_radius"] ** 2
             - bed_properties["inner_bed_radius"] ** 2
@@ -1438,7 +1443,6 @@ def ODE_calculations(
         / (bed_properties["wall_heat_capacity"] * bed_properties["wall_density"])
         * (wall_conduction + bed_heat_exchange + ambient_heat_loss)
     )
-    dTwdt = np.zeros(num_cells)
 
     # """\frac{\partial T_w}{\partial t} =
     # \frac{1}{\rho_w \ C_{p,wall}} \left(\frac{K_{wall}}{\Delta z}\left(\frac{\partial T_w}{\partial z}|_{i+1/2} - \frac{\partial T_w}{\partial z}|_{i-1/2}\right)

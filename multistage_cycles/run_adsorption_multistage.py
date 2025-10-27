@@ -16,10 +16,7 @@ from kpi_calculations import (
     print_stage_kpis,
     print_cycle_kpis,
 )
-from config_LJ import (
-    create_fixed_properties,
-    create_multi_plot,
-)
+import config_LJ_2015 as config
 
 """
 Multi-stage adsorption column simulation for CO2 capture.
@@ -165,7 +162,7 @@ def run_stage(
     t_span,
     initial_conditions,
     cycle_properties,
-    solver="BDF",
+    solver="LSODA",
 ):
     """
     Run simulation for a single process stage.
@@ -206,11 +203,12 @@ def run_stage(
             column_direction=column_direction,
             stage=stage,
             P_initial=P_initial,
+            config=config,
         )
 
     # Solve the ODE system
     if stage == "adsorption":
-        max_step = 1.0
+        max_step = 10
         first_step = 1e-6
     # elif stage == "blowdown":
     #     max_step = 5.0
@@ -222,11 +220,14 @@ def run_stage(
     #     max_step = 0.1
     #     first_step = 1e-6
     # elif stage == "desorption":
-    #     max_step = 1.0
-    #     first_step = 1e-6
+    #      max_step = 1.0
+    #      first_step = 1e-3
     # elif stage == "cooling":
     #     max_step = 0.1
     #     first_step = 1e-6
+    elif stage == "pressurisation":
+        max_step = 1.0
+        first_step = 1e-6
     else:
         max_step = np.inf
         first_step = None
@@ -278,6 +279,9 @@ def run_stage(
         bed_properties,
         column_grid,
     )
+
+    
+    
 
     print(f"Completed {stage} stage")
     print(f"Mass balance error: {mass_balance_error}")
@@ -425,17 +429,11 @@ def run_cycle(n_cycles):
         for stage_name, t_span in stages:
             # Special handling for temperature changes
             if stage_name in ["heating", "desorption"]:
-                stage_conditions[
-                    2 * column_grid["num_cells"] : 3 * column_grid["num_cells"]
-                ] = bed_properties["desorption_temperature"] / bed_properties["T_ref"]
+                bed_properties["outside_temperature"] = bed_properties["desorption_temperature"]
             elif stage_name == "steam_desorption":
-                stage_conditions[
-                    2 * column_grid["num_cells"] : 3 * column_grid["num_cells"]
-                ] = bed_properties["desorption_temperature"] / bed_properties["T_ref"]
+                   bed_properties["outside_temperature"] = bed_properties["desorption_temperature"]
             elif stage_name in ["cooling", "pressurisation", "adsorption", "blowdown"]:
-                stage_conditions[
-                    2 * column_grid["num_cells"] : 3 * column_grid["num_cells"]
-                ] = bed_properties["ambient_temperature"] / bed_properties["T_ref"]
+                bed_properties["outside_temperature"] = bed_properties["ambient_temperature"]
 
             E_result = np.zeros((7,))
             F_result = np.zeros((8,))
@@ -473,7 +471,47 @@ def run_cycle(n_cycles):
                 profile_data,
             ) = stage_results
 
+            # ...existing code...
 
+            # # Quick plots for pressurisation stage
+            # if stage_name == "desorption":
+            #     import matplotlib.pyplot as plt
+
+            #     # 1. Outlet Pressure vs Time
+            #     plt.figure()
+            #     plt.plot(time_array, profile_data["P_result"][-1, :], marker="o")
+            #     plt.xlabel("Time (s)")
+            #     plt.ylabel("Outlet Pressure (Pa)")
+            #     plt.title("Pressurisation: Outlet Pressure vs Time")
+            #     plt.grid(True)
+
+            #     # 2. Outlet Temperature vs Time
+            #     plt.figure()
+            #     plt.plot(time_array, profile_data["T_result"][-1, :], marker="o")
+            #     plt.xlabel("Time (s)")
+            #     plt.ylabel("Outlet Temperature (K)")
+            #     plt.title("Pressurisation: Outlet Temperature vs Time")
+            #     plt.grid(True)
+
+            #     # 3. Outlet CO₂ Mole Fraction vs Time
+            #     plt.figure()
+            #     plt.plot(time_array, profile_data["y1_result"][-1, :], marker="o")
+            #     plt.xlabel("Time (s)")
+            #     plt.ylabel("Outlet CO₂ Mole Fraction")
+            #     plt.title("Pressurisation: Outlet CO₂ Mole Fraction vs Time")
+            #     plt.grid(True)
+
+            #     # 4. Outlet Wall Temperature vs Time
+            #     plt.figure()
+            #     plt.plot(time_array, profile_data["Tw_result"][-1, :], marker="o")
+            #     plt.xlabel("Time (s)")
+            #     plt.ylabel("Outlet Wall Temperature (K)")
+            #     plt.title("Pressurisation: Outlet Wall Temperature vs Time")
+            #     plt.grid(True)
+
+            #     plt.show()
+
+# ...existing code...
             # import matplotlib.pyplot as plt
             # plt.figure()
             # plt.plot(time_array, profile_data["T_result"][-1, :], marker="o")
@@ -525,7 +563,7 @@ def run_cycle(n_cycles):
             adjusted_time = time_array + time_offset
             midpoint = column_grid["num_cells"] // 2
             cycle_profiles["time"].extend(adjusted_time)
-            cycle_profiles["temperature"].extend(profile_data["T_result"][-1, :])
+            cycle_profiles["temperature"].extend(profile_data["T_result"][midpoint, :])
             cycle_profiles["pressure_inlet"].extend(
                 profile_data["P_walls_result"][0, :]
             )
@@ -533,7 +571,7 @@ def run_cycle(n_cycles):
                 profile_data["P_walls_result"][-1, :]
             )
             cycle_profiles["outlet_CO2"].extend(profile_data["y1_result"][-1, :])
-            cycle_profiles["adsorbed_CO2"].extend(profile_data["n1_result"][midpoint, :])
+            cycle_profiles["adsorbed_CO2"].extend(profile_data["n1_result"][-1, :])
             cycle_profiles["wall_temperature"].extend(profile_data["Tw_result"][-1, :])
             cycle_profiles["adsorbed_H2O"].extend(profile_data["n2_result"][-1, :])
             cycle_profiles["outlet_H2O"].extend(profile_data["y2_result"][-1, :])
@@ -543,9 +581,12 @@ def run_cycle(n_cycles):
                 - profile_data["y1_result"][-1, :]
                 - profile_data["y2_result"][-1, :]
                 - profile_data["y3_result"][-1, :]
-            )
+            ) 
+            
             # Update time offset
             time_offset = adjusted_time[-1]
+
+
 
         # CALCULATE CYCLE KPIs
         cycle_error_value = cycle_error(current_initial_conditions, stage_conditions)
@@ -580,6 +621,7 @@ def run_cycle(n_cycles):
     else:
         print(f"\nMaximum cycles ({n_cycles}) reached without convergence")
 
+    
     return profiles, all_cycle_kpis, all_cycle_errors
 
 
@@ -594,12 +636,12 @@ def main():
 
     # Initialize system properties
     bed_properties, column_grid, initial_conditions, rtol, atol_array = (
-        create_fixed_properties()
+        config.create_fixed_properties()
     )
 
     # Run simulation
     print("Starting TVSA simulation...")
-    n_cycles = 2
+    n_cycles = 5
 
     simulation_results = run_cycle(n_cycles)
 
@@ -620,7 +662,7 @@ def main():
     stage_names = [name for name, _ in stages]
 
     # Create visualization
-    create_multi_plot(profiles, bed_properties)
+    config.create_multi_plot(profiles, bed_properties)
     create_quick_plot(
         np.arange(1, len(all_cycle_errors) + 1),
         np.log10(all_cycle_errors),

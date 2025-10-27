@@ -264,7 +264,7 @@ def pressure_ramp(t, stage, pressure_previous_stage, bed_properties):
 
 
 def pressure_ramp_2(t, stage, pressure_previous_step, bed_properties):
-    tau = 0.11
+    tau = 0.5
     ambient_pressure = bed_properties["ambient_pressure"]
     vacuum_pressure = bed_properties["vacuum_pressure"]
     pressurisation_pressure = bed_properties["pressurisation_pressure"]
@@ -311,6 +311,8 @@ def calculate_gas_heat_capacity(y1, y2, y3, T):
     Cp_CO2 = params_CO2["A"] * T**2 + params_CO2["B"] * T + params_CO2["C"]  # J/(mol·K)
     Cp_O2 = params_O2["A"] * T**2 + params_O2["B"] * T + params_O2["C"]  # J/(mol·K)
     Cp_gas = y1 * Cp_CO2 + y2 * Cp_H2O + y3 * Cp_N2 + (1 - y1 - y2 - y3) * Cp_O2
+
+    
     return Cp_gas  # J/(mol·K)
 
 

@@ -40,7 +40,7 @@ def create_fixed_properties():
         # Mass transfer coefficients - FROM PAPER TABLE 1
         "mass_transfer_1": 0.15,  # CO2 mass transfer coeff [s⁻¹] - CORRECTED from 0.0002
         "mass_transfer_2": 0,  # N2 mass transfer coeff [s⁻¹] - ADDED from paper
-        "mass_transfer_3": 1.00,  # H2O mass transfer coeff [s⁻¹] - NOT USED IN PAPER
+        "mass_transfer_3": 0.5,  # H2O mass transfer coeff [s⁻¹] - NOT USED IN PAPER
         # Note: H2O not modeled in paper (dried upstream), so no k_H2O given
         
         # Heat transfer properties - FROM PAPER TABLE 1
@@ -89,15 +89,15 @@ def create_fixed_properties():
         "fan_efficiency": 0.5,  # Fan efficiency - NOT IN PAPER
 
          # Optimisation parameters - FROM PAPER (Table 2, Run 1 for Cycle D as example)
-        "outside_temperature": 300,  # Ambient temperature for heat loss [K] - NOT IN PAPER
+        "outside_temperature": 320,  # Ambient temperature for heat loss [K] - NOT IN PAPER
         "desorption_temperature": 420,  # Desorption/heating temperature [K] - CORRECTED
         "cooling_temperature": 300,  # Cooling temperature [K] - ADDED from paper
         "vacuum_pressure": 101325,  # Vacuum pressure [Pa]
         "pressurisation_pressure": 102000,  # Pressurisation pressure [Pa] - 1.3 bar from paper
 
-        "adsorption_time": 1200,  # Adsorption time [s] - Example from Table 2, Run 1
-        "desorption_time": 2000,  # Desorption time [s] - NOT USED IN PAPER
-        "cooling_time": 1450,  # Cooling time [s] - Example from Table 2
+        "adsorption_time": 360,  # Adsorption time [s] - Example from Table 2, Run 1
+        "desorption_time": 850,  # Desorption time [s] - NOT USED IN PAPER
+        "cooling_time": 530,  # Cooling time [s] - Example from Table 2
         "pressurisation_time": 50,  # Pressurisation time [s] - NOT USED IN PAPER
         
         
@@ -355,24 +355,38 @@ def create_multi_plot(profiles, bed_properties):
     """
     # Import data
 
+    author = "LJ_profiles_2015"
+
     time_temp = np.loadtxt(
-        "multistage_cycles/LJ_profiles/temperature.csv",
+        f"multistage_cycles/{author}/temperature.csv",
         delimiter=",",
         usecols=0,
     )  # First column
     temp = np.loadtxt(
-        "multistage_cycles/LJ_profiles/temperature.csv",
+        f"multistage_cycles/{author}/temperature.csv",
         delimiter=",",
         usecols=1,
     )  # Second column
 
     time_yCO2 = np.loadtxt(
-        "multistage_cycles/LJ_profiles/yCO2.csv",
+        f"multistage_cycles/{author}/yCO2.csv",
         delimiter=",",
         usecols=0,
     )  # First column
     yCO2 = np.loadtxt(
-        "multistage_cycles/LJ_profiles/yCO2.csv",
+        f"multistage_cycles/{author}/yCO2.csv",
+        delimiter=",",
+        usecols=1,
+    )  # Second column
+      # Second column
+
+    time_p = np.loadtxt(
+        f"multistage_cycles/{author}/pressure.csv",
+        delimiter=",",
+        usecols=0,
+    )  # First column
+    pressure = np.loadtxt(
+        f"multistage_cycles/{author}/pressure.csv",
         delimiter=",",
         usecols=1,
     )  # Second column
@@ -422,13 +436,13 @@ def create_multi_plot(profiles, bed_properties):
     ax = axes[1]
     ax.plot(time, P_inlet, label="Inlet Pressure", color="tab:green", linestyle="None", marker="o", markersize=2)
     ax.plot(time, P_outlet, label="Outlet Pressure", color="tab:red", linestyle="None", marker="o", markersize=2)
-    # ax.plot(
-    #     time_6,
-    #     pressure,
-    #     color="black",
-    #     linestyle="--",
-    #     alpha=0.7,
-    # )
+    ax.plot(
+        time_p,
+        pressure,
+        color="black",
+        linestyle="--",
+        alpha=0.7,
+    )
     ax.set_title("Pressure Profiles")
     ax.set_ylabel("Pressure (Pa)")
     ax.legend()
