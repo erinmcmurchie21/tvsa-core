@@ -14,6 +14,8 @@ def create_fixed_properties():
     """
     # Column dimensions and physical properties
     bed_properties = {
+
+
         # Geometry - FROM PAPER TABLE 1
         "bed_length": 1.2,  # Bed length [m]
         "inner_bed_radius": 0.015,  # Inner radius [m] 
@@ -95,14 +97,14 @@ def create_fixed_properties():
         "vacuum_pressure": 101325,  # Vacuum pressure [Pa]
         "pressurisation_pressure": 102000,  # Pressurisation pressure [Pa] - 1.3 bar from paper
 
-        "adsorption_time": 1200,  # Adsorption time [s] - Example from Table 2, Run 1
+        "adsorption_time": 300,  # Adsorption time [s] - Example from Table 2, Run 1
         "desorption_time": 2000,  # Desorption time [s] - NOT USED IN PAPER
         "cooling_time": 1450,  # Cooling time [s] - Example from Table 2
         "pressurisation_time": 50,  # Pressurisation time [s] - NOT USED IN PAPER
         
         
         # Feed conditions - FROM PAPER TABLE 1
-        "feed_velocity": 0.50,  # Superficial feed velocity [m/s]
+        "feed_velocity": 0.5*0.3475,  # Superficial feed velocity [m/s]
         "feed_temperature": 303,  # Feed temperature [K]
         "feed_pressure": 130000,  # Feed pressure [Pa] - 1.3 bar from paper
         "feed_flow_rate": 3.5e-4,  # Feed flow rate [m³/s] - FROM PAPER TABLE 1
@@ -280,7 +282,7 @@ def adsorption_isotherm_1(
         alpha_N2 = 0 # [-]
         c_N2 = 0.98624 + alpha_N2 * (temperature / T_0 - 1 ) # [-]
         load_kg = n_inf * ( (b_CO2 * p_CO2) ** (c_CO2) ) / (1 + (b_CO2 * p_CO2) ** (c_CO2) + (b_N2 * p_N2) ** (c_N2) )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        load_m3 = load_kg * bed_density   # mol/m³
         ΔH = -37000  # J/mol
     
     return load_m3, ΔH
@@ -335,7 +337,7 @@ def adsorption_isotherm_3(
         alpha_N2 = 0
         c_N2 = 0.98624 + alpha_N2 * (temperature / T_0 - 1 )
         load_kg = n_inf * ( (b_N2 * p_N2) ** (c_N2) ) / (1 + (b_CO2 * p_CO2) ** (c_CO2) + (b_N2 * p_N2) ** (c_N2) )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        load_m3 = load_kg * bed_density   # mol/m³
         ΔH = -18500  # J/mol
 
     return load_m3, ΔH
@@ -356,23 +358,23 @@ def create_multi_plot(profiles, bed_properties):
     # Import data
 
     time_temp = np.loadtxt(
-        "multistage_cycles/LJ_profiles/temperature.csv",
+        "multistage_cycles/profiles/LJ_profiles/temperature.csv",
         delimiter=",",
         usecols=0,
     )  # First column
     temp = np.loadtxt(
-        "multistage_cycles/LJ_profiles/temperature.csv",
+        "multistage_cycles/profiles/LJ_profiles/temperature.csv",
         delimiter=",",
         usecols=1,
     )  # Second column
 
     time_yCO2 = np.loadtxt(
-        "multistage_cycles/LJ_profiles/yCO2.csv",
+        "multistage_cycles/profiles/LJ_profiles/yCO2.csv",
         delimiter=",",
         usecols=0,
     )  # First column
     yCO2 = np.loadtxt(
-        "multistage_cycles/LJ_profiles/yCO2.csv",
+        "multistage_cycles/profiles/LJ_profiles/yCO2.csv",
         delimiter=",",
         usecols=1,
     )  # Second column
@@ -394,8 +396,8 @@ def create_multi_plot(profiles, bed_properties):
     bed_density = bed_properties["bed_density"]
     bed_voidage = bed_properties["bed_voidage"]
 
-    adsorbed_CO2 = np.array(adsorbed_CO2) / (bed_density / (1 - bed_voidage))
-    adsorbed_H2O = np.array(adsorbed_H2O) / (bed_density / (1 - bed_voidage))
+    adsorbed_CO2 = np.array(adsorbed_CO2) / (bed_density )
+    adsorbed_H2O = np.array(adsorbed_H2O) / (bed_density )
     relative_humidity = mole_fraction_to_relative_humidity(outlet_H2O, P_outlet, T_gas)
 
     figsize = (15, 8)

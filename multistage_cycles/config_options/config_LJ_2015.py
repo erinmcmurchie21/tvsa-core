@@ -14,6 +14,8 @@ def create_fixed_properties():
     """
     # Column dimensions and physical properties
     bed_properties = {
+        
+
         # Geometry - FROM PAPER TABLE 1
         "bed_length": 1.2,  # Bed length [m]
         "inner_bed_radius": 0.015,  # Inner radius [m] 
@@ -62,13 +64,14 @@ def create_fixed_properties():
         # Thermodynamic properties
         "R": 8.314,  # Universal gas constant [J/mol·K]
         "k": 1.4,  # Heat capacity ratio [-] - NOT IN PAPER
-        "ambient_temperature": 300,  # Ambient temperature [K] - NOT IN PAPER
+        "ambient_temperature": 310,  # Ambient temperature [K] - NOT IN PAPER
         "ambient_pressure": 101325,  # Ambient pressure [Pa] - CORRECTED to 1.3 bar from paper
         
         # Adsorption isotherms - FROM PAPER TABLE 1
         "isotherm_type_1": "BinarySips",  # CO2 isotherm type - CORRECTED from ModifiedToth
         "isotherm_type_2": "None",  
         "isotherm_type_3": "BinarySips",  # N2 isotherm type - ADDED
+        
         # Reference values for scaling (dimensionless variables)
         "P_ref": 101325,  # Reference pressure [Pa] - NOT IN PAPER
         "T_ref": 298.15,  # Reference temperature [K] - NOT IN PAPER
@@ -89,25 +92,23 @@ def create_fixed_properties():
         "fan_efficiency": 0.5,  # Fan efficiency - NOT IN PAPER
 
          # Optimisation parameters - FROM PAPER (Table 2, Run 1 for Cycle D as example)
-        "outside_temperature": 320,  # Ambient temperature for heat loss [K] - NOT IN PAPER
-        "desorption_temperature": 420,  # Desorption/heating temperature [K] - CORRECTED
-        "cooling_temperature": 300,  # Cooling temperature [K] - ADDED from paper
+        "desorption_temperature": 430,  # Desorption/heating temperature [K] - CORRECTED
+        "cooling_temperature": 310,  # Cooling temperature [K] - ADDED from paper
         "vacuum_pressure": 101325,  # Vacuum pressure [Pa]
         "pressurisation_pressure": 102000,  # Pressurisation pressure [Pa] - 1.3 bar from paper
 
-        "adsorption_time": 360,  # Adsorption time [s] - Example from Table 2, Run 1
-        "desorption_time": 850,  # Desorption time [s] - NOT USED IN PAPER
-        "cooling_time": 530,  # Cooling time [s] - Example from Table 2
-        "pressurisation_time": 50,  # Pressurisation time [s] - NOT USED IN PAPER
-        
+        "adsorption_time": 430,  # Adsorption time [s] - Example from Table 2, Run 1
+        "desorption_time": 1330,  # Desorption time [s] - NOT USED IN PAPER
+        "cooling_time": 750,  # Cooling time [s] - Example from Table 2
+        "pressurisation_time": 10,  # Pressurisation time [s] - NOT USED IN PAPER
         
         # Feed conditions - FROM PAPER TABLE 1
-        "feed_velocity": 0.50,  # Superficial feed velocity [m/s]
-        "feed_temperature": 303,  # Feed temperature [K]
-        "feed_pressure": 130000,  # Feed pressure [Pa] - 1.3 bar from paper
+        "feed_velocity": 0.50 * 0.3475,  # Superficial feed velocity [m/s]
+        "feed_temperature": 300,  # Feed temperature [K]
+        "feed_pressure": 102000,  # Feed pressure [Pa] - 1.3 bar from paper
         "feed_flow_rate": 3.5e-4,  # Feed flow rate [m³/s] - FROM PAPER TABLE 1
-        "steam_velocity": 0.025,  # Superficial steam velocity [m/s] - NOT IN PAPER
-        "steam_temperature": 368.15,  # Steam temperature [K] - NOT USED IN PAPER
+        "steam_velocity": None,  # Superficial steam velocity [m/s] - NOT IN PAPER
+        "steam_temperature": 298,  # Steam temperature [K] - NOT USED IN PAPER
         
         # Feed composition - FROM PAPER (flue gas, not ambient air!)
         "feed_composition": {
@@ -158,8 +159,8 @@ def create_fixed_properties():
     # Initial conditions: ambient pressure, temperature, and composition
     y2_feed = 1e-6
     P_init = np.ones(num_cells) * 130000  # Pressure [Pa]
-    T_init = np.ones(num_cells) * 303  # Gas temperature [K]
-    Tw_init = np.ones(num_cells) * 303  # Wall temperature [K]
+    T_init = np.ones(num_cells) * 310  # Gas temperature [K]
+    Tw_init = np.ones(num_cells) * 310  # Wall temperature [K]
     y1_init = np.ones(num_cells) * 0.1  # CO2 mole fraction
     y2_init = np.ones(num_cells) * y2_feed  # H2O mole fraction
     y3_init = np.ones(num_cells) * 0.88  # N2 mole fraction
@@ -252,7 +253,7 @@ def create_fixed_properties():
 
 
 def adsorption_isotherm_1(
-    pressure, temperature, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1="WADST"
+    pressure, temperature, y1, y2, y3, n1, n2, bed_properties, isotherm_type_1="BinarySips"
 ):
     """
     Toth isotherm for CO₂ on solid sorbent.
@@ -280,7 +281,7 @@ def adsorption_isotherm_1(
         alpha_N2 = 0 # [-]
         c_N2 = 0.98624 + alpha_N2 * (temperature / T_0 - 1 ) # [-]
         load_kg = n_inf * ( (b_CO2 * p_CO2) ** (c_CO2) ) / (1 + (b_CO2 * p_CO2) ** (c_CO2) + (b_N2 * p_N2) ** (c_N2) )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        load_m3 = load_kg * bed_density  # mol/m³
         ΔH = -37000  # J/mol
     
     return load_m3, ΔH
@@ -335,7 +336,7 @@ def adsorption_isotherm_3(
         alpha_N2 = 0
         c_N2 = 0.98624 + alpha_N2 * (temperature / T_0 - 1 )
         load_kg = n_inf * ( (b_N2 * p_N2) ** (c_N2) ) / (1 + (b_CO2 * p_CO2) ** (c_CO2) + (b_N2 * p_N2) ** (c_N2) )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        load_m3 = load_kg * bed_density   # mol/m³
         ΔH = -18500  # J/mol
 
     return load_m3, ΔH
@@ -408,8 +409,8 @@ def create_multi_plot(profiles, bed_properties):
     bed_density = bed_properties["bed_density"]
     bed_voidage = bed_properties["bed_voidage"]
 
-    adsorbed_CO2 = np.array(adsorbed_CO2) / (bed_density / (1 - bed_voidage))
-    adsorbed_H2O = np.array(adsorbed_H2O) / (bed_density / (1 - bed_voidage))
+    adsorbed_CO2 = np.array(adsorbed_CO2) / (bed_density)
+    adsorbed_H2O = np.array(adsorbed_H2O) / (bed_density)
     relative_humidity = mole_fraction_to_relative_humidity(outlet_H2O, P_outlet, T_gas)
 
     figsize = (15, 8)

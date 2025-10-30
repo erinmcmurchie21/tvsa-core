@@ -264,7 +264,7 @@ def pressure_ramp(t, stage, pressure_previous_stage, bed_properties):
 
 
 def pressure_ramp_2(t, stage, pressure_previous_step, bed_properties):
-    tau = 0.5
+    tau = 1.0
     ambient_pressure = bed_properties["ambient_pressure"]
     vacuum_pressure = bed_properties["vacuum_pressure"]
     pressurisation_pressure = bed_properties["pressurisation_pressure"]

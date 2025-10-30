@@ -227,7 +227,7 @@ def left_boundary_conditions(
             column_grid["xCentres"][column_grid["nGhost"] + 1],
             T[1],
             column_grid["xWalls"][column_grid["nGhost"]],
-            -np.abs(v_left) * bed_properties["bed_voidage"] / thermal_diffusivity,
+            -np.abs(v_left) * Pe_h,
             left_values["left_temperature"],
         )
 
@@ -279,9 +279,7 @@ def left_boundary_conditions(
         Tw_left = Tw[0]
 
         P_left = func.pressure_ramp_2(t, left_values["stage"], P[0], bed_properties)[0]
-        dPdz_left = func.pressure_ramp_2(t, left_values["stage"], P[0], bed_properties)[
-            1
-        ]
+        dPdz_left = func.pressure_ramp_2(t, left_values["stage"], P[0], bed_properties)[1]
 
         if P_left is None:
             P_left = P[0] + dPdz_left * (
@@ -1257,21 +1255,19 @@ def ODE_calculations(
     a_2 = (
         bed_properties["total_voidage"] * P / (bed_properties["R"] * T) * Cp_g
         + bed_properties["bed_density"] * Cp_solid
-        + (1 - bed_properties["bed_voidage"]) * (Cp_1 * n1 + Cp_2 * n2 + Cp_3 * n3)
+        + (Cp_1 * n1 + Cp_2 * n2 + Cp_3 * n3)
         - bed_properties["total_voidage"] * P / T
     )
-
+    #  a_2 = \varepsilon_t \frac{P}{RT}C_{p,g}+\rho_b C_{p,s}+(1-\varepsilon_b)C_{p,i} \ n_i - \varepsilon_t \frac{P}{T}
     # Column energy balance terms
     conduction_term = (
         +K_z
-        * bed_properties["bed_voidage"]
         * (1 / column_grid["deltaZ"][1:-1])
         * (dTdz_walls[1 : num_cells + 1] - dTdz_walls[:num_cells])
     )
 
     convection_term = (
         -Cp_g
-        * bed_properties["bed_voidage"]
         / bed_properties["R"]
         / column_grid["deltaZ"][1:-1]
         * (
@@ -1280,9 +1276,8 @@ def ODE_calculations(
         )
     )
 
-    accumulation_term = +bed_properties["R"] * T * (
-        1 - bed_properties["bed_voidage"]
-    ) * (dn1dt + dn2dt) - T * bed_properties["bed_voidage"] / (
+    accumulation_term = +bed_properties["R"] * T  * (dn1dt + dn2dt) 
+    - T / (
         column_grid["deltaZ"][1:-1]
     ) * (
         P_walls[1 : num_cells + 1]
@@ -1291,12 +1286,12 @@ def ODE_calculations(
         - P_walls[:num_cells] * v_walls[:num_cells] / T_walls[:num_cells]
     )
 
-    adsorption_heat_term = +(1 - bed_properties["bed_voidage"]) * (
+    adsorption_heat_term = + (
         (np.abs(deltaH_1)) * dn1dt + (np.abs(deltaH_2)) * dn2dt + (np.abs(deltaH_3)) * dn3dt
     )
 
     adsorbent_heat_term = (
-        -(1 - bed_properties["bed_voidage"]) * T * (Cp_1 * dn1dt + Cp_2 * dn2dt + Cp_3 * dn3dt)
+        - T * (Cp_1 * dn1dt + Cp_2 * dn2dt + Cp_3 * dn3dt)
     )
 
     heat_transfer_term = -2 * h_bed * (T - Tw) / (bed_properties["inner_bed_radius"])
@@ -1315,12 +1310,12 @@ def ODE_calculations(
         )
     )
 
-    # \frac{\partial T}{\partial t} = \frac{1}{a_2}\left[
-    # \frac{K_z}{\varepsilon \Delta z}\left(\frac{\partial T}{\partial z}|_{i+1/2} - \frac{\partial T}{\partial z}|_{i-1/2}\right) - \frac{C_{p,g}}{R \Delta z} \left(P_{i+1/2} \ v_{i+1/2} - P_{i-1/2}v_{i-1/2} \right) \right.\\
-    # - \frac{C_{p,g}}{R} \left( - \dfrac{(1-\varepsilon)}{\varepsilon}{RT} \left(\frac{\partial q_1}{\partial t}+\frac{\partial q_2}{\partial t}\right) - \frac{1}{\varepsilon} \frac{T}{\Delta z} \left( \frac{P_{i+1/2} \ v_{i+1/2}}{T_{i+1/2}}-\frac{P_{i-1/2} \ v_{i-1/2}}{T_{i-1/2}} \right) \right) \\ \left. + \frac{1-\varepsilon}{\varepsilon} \left(  \Delta H_1 \frac{\partial q_1}{\partial t} +\Delta H_2 \frac{\partial q_2}{\partial t}\right)
-    # + \frac{1-\varepsilon}{\varepsilon}  C_{p,ads} T \left( \frac{\partial q_1}{\partial t} + \frac{\partial q_2}{\partial t}\right) + \frac{2h_{bed}}{R_{in}}(T-T_w)\right]"""
-
-    # =========================================================================
+#     \frac{\partial T}{\partial t} = \frac{1}{a_2}\left[
+#  K_z \ \varepsilon_b\frac{\partial}{\partial z}\left(\frac{\partial T}{\partial z}\right) - \frac{C_{p,g} \ \varepsilon_b}{R}\frac{\partial}{\partial z} \left(P \ v \right) \right.\\
+#   - (1-\varepsilon_b){RT} \left(\frac{\partial n_1}{\partial t}+\frac{\partial n_2}{\partial t}\right) - T \ \varepsilon_b \frac{\partial}{\partial z} \left( \frac{P \ v}{T} \right)  \\ 
+# \left. + (1-\varepsilon_b) \left(  \Delta H_1 \frac{\partial q_1}{\partial t} +\Delta H_2 \frac{\partial q_2}{\partial t}\right)
+#  + (1-\varepsilon_b)  C_{p,ads} T \left( \frac{\partial q_1}{\partial t} + \frac{\partial q_2}{\partial t}\right) + \frac{2h_{bed}}{R_{in}}(T-T_w) \right]
+#     # =========================================================================
     # TOTAL ENERGY BALANCE - UGLY VERSION
     # =========================================================================
     """
@@ -1380,7 +1375,7 @@ def ODE_calculations(
 
     thermal_expansion_term = P / T * dTdt
     adsorption_term = (
-        -(1 - bed_properties["bed_voidage"])
+        - 1
         / bed_properties["total_voidage"]
         * bed_properties["R"]
         * T
@@ -1388,7 +1383,6 @@ def ODE_calculations(
     )
     convective_term = (
         -T
-        * bed_properties["bed_voidage"]
         / bed_properties["total_voidage"]
         * 1
         / column_grid["deltaZ"][1:-1]
@@ -1404,6 +1398,10 @@ def ODE_calculations(
 
     # \dfrac{\partial P}{\partial t} = \dfrac{P}{T}\dfrac{\partial T}{\partial t} - \dfrac{(1-\varepsilon)}{\varepsilon}{RT} \left(\frac{\partial q_1}{\partial t}+\frac{\partial q_2}{\partial t}\right)
     # - \frac{1}{\varepsilon} \frac{T}{\Delta z} \left( \frac{P_{i+1/2} \ v_{i+1/2}}{T_{i+1/2}}-\frac{P_{i-1/2} \ v_{i-1/2}}{T_{i-1/2}} \right)"""
+
+    # Non-distcretized
+#     \dfrac{\partial P}{\partial t} = \dfrac{P}{T}\dfrac{\partial T}{\partial t} - \dfrac{(1-\varepsilon_b)}{\varepsilon_t}{RT} \left(\frac{\partial q_1}{\partial t}+\frac{\partial q_2}{\partial t}\right)
+#  - \frac{\varepsilon_b}{\varepsilon_t} T \dfrac{\partial}{\partial z}\left( \frac{P \ v}{T} \right)
 
     # =========================================================================
     # WALL ENERGY BALANCE
@@ -1443,7 +1441,7 @@ def ODE_calculations(
         / (bed_properties["wall_heat_capacity"] * bed_properties["wall_density"])
         * (wall_conduction + bed_heat_exchange + ambient_heat_loss)
     )
-
+    
     # """\frac{\partial T_w}{\partial t} =
     # \frac{1}{\rho_w \ C_{p,wall}} \left(\frac{K_{wall}}{\Delta z}\left(\frac{\partial T_w}{\partial z}|_{i+1/2} - \frac{\partial T_w}{\partial z}|_{i-1/2}\right)
     # + \frac{2 r_{in} \ h_{bed}}{r_{out}^2-r_{in}^2} \left(T-T_w \right) - \frac{2 r_{out} \ h_{wall}}{r_{out}^2-r_{in}^2} \left(T_w-T_a \right)\right)"""
@@ -1460,7 +1458,7 @@ def ODE_calculations(
         adsorption_effect = 0
         if dnidt is not None:
             adsorption_effect = (
-                -(1 - bed_properties["bed_voidage"])
+                - 1
                 / bed_properties["total_voidage"]
                 * bed_properties["R"]
                 * T
@@ -1469,7 +1467,7 @@ def ODE_calculations(
             )
 
         convection_effect = (
-            -bed_properties["bed_voidage"]
+            -1
             / bed_properties["total_voidage"]
             * T
             / P
@@ -1493,7 +1491,7 @@ def ODE_calculations(
         )
 
         dispersion_effect = (
-            bed_properties["bed_voidage"]
+            + 1
             / bed_properties["total_voidage"]
             * D_l
             * T
@@ -1522,6 +1520,12 @@ def ODE_calculations(
     # - \dfrac{(1-\varepsilon)}{\varepsilon}\frac{RT}{P}\frac{\partial q_1}{\partial t} - \frac{1}{\varepsilon}\frac{T}{P}\frac{1}{\Delta z}
     # \left( \frac{P_{i+1/2} \ y_{1,i+1/2} \ v_{i+1/2}}{T_{i+1/2}}-\frac{P_{i-1/2} \ y_{1,i-1/2} \ v_{i-1/2}}{T_{i-1/2}} \right) \\
     # + D_l \  \frac{T}{P} \ \frac{1}{\Delta z} \left( \frac{P_{i+1/2}}{T_{i+1/2}} \ \frac{y_{1,i+1} - y_{1,i}}{\Delta z} - \frac{P_{i-1/2}}{T_{i-1/2}} \ \frac{y_{1,i} - y_{1,i-1}}{\Delta z}\right)"""
+
+# Non-discretized version
+#     \dfrac{\partial y_i}{\partial t} = \dfrac{y_i}{P}\dfrac{\partial P}{\partial t} + \dfrac{y_i}{T}\dfrac{\partial T}{\partial t}
+# - \dfrac{(1-\varepsilon_b)}{\varepsilon_t}\frac{RT}{P}\frac{\partial q_i}{\partial t} \\- \frac{\varepsilon_b}{\varepsilon_t}\frac{T}{P}\frac{\partial}{\partial z}
+#  \left( \frac{P \ y_i \ v}{T} \right)
+#  + D_l \frac{\varepsilon_b}{\varepsilon_t}\  \frac{T}{P} \ \frac{\partial}{\partial z} \left( \frac{P}{T} \ \frac{\partial y_i}{\partial z}\right)
 
     # Component 2 (adsorbing)
     dy2dt = calculate_component_balance(y2, y2_walls, y2_all, dn2dt)

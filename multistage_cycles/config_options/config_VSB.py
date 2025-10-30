@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from additional_functions_multistage import (
+from Restructure.additional_functions import (
     create_non_uniform_grid, mole_fraction_to_relative_humidity,
 )
 
@@ -14,6 +14,7 @@ def create_fixed_properties():
     """
     # Column dimensions and physical properties
     bed_properties = {
+
         # Geometry
         "bed_length": 0.01,  # Bed length [m]
         "inner_bed_radius": 0.04,  # Inner radius [m]
@@ -58,6 +59,7 @@ def create_fixed_properties():
         # Optimisation parameters
         "desorption_temperature": 368.15,  # Desorption temperature [K]
         "vacuum_pressure": 5000,  # Vacuum pressure [Pa]
+        "pressurisation_pressure": 100000,  # Pressurisation pressure [Pa]
         "adsorption_time": 13772,  # Adsorption time [s]
         "blowdown_time": 30,  # Blowdown time [s]
         "heating_time": 704,  # Heating time [s]
@@ -83,9 +85,9 @@ def create_fixed_properties():
         "compressor_efficiency": 0.75,  # Compressor efficiency
         "fan_efficiency": 0.5,  # Fan efficiency
         # Feed conditions
-        "feed_velocity": 50 / 1e6 / 0.04**2 * np.pi,  # Superficial feed velocity [m/s]
+        "feed_velocity": 50 / 1e6 / (0.04**2 * np.pi) / 0.0918,  # Interstitial feed velocity [m/s]
         "feed_temperature": 293.15,  # Feed temperature [K]
-        "steam_velocity": 25 / 1e6 / 0.04**2 * np.pi, #0.0025,  # Superficial steam velocity [m/s]
+        "steam_velocity": 25 / 1e6 / (0.04**2 * np.pi) / 0.0918, #0.0025,  # Superficial steam velocity [m/s]
         "steam_temperature": 368.15,  # Steam temperature [K]
         "feed_composition": {
             "y1": 0.0004,
@@ -258,7 +260,7 @@ def adsorption_isotherm_1(
         load_kg = (
             n_s * b * pressure_kPa * y1 / (1 + (b * pressure_kPa * y1) ** t) ** (1 / t)
         )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        load_m3 = load_kg * bed_density   # mol/m³
         ΔH = -57047  # J/mol
 
     elif isotherm_type_1 == "ModifiedToth":
@@ -283,7 +285,7 @@ def adsorption_isotherm_1(
         load_kg = (
             n_s * b * pressure_kPa * y1 / (1 + (b * pressure_kPa * y1) ** t) ** (1 / t)
         )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        load_m3 = load_kg * bed_density   # mol/m³
         ΔH = -57047  # J/mol
 
     elif isotherm_type_1 == "Langmuir":
@@ -297,7 +299,7 @@ def adsorption_isotherm_1(
         load_kg = 3.09 * b1 * c1 / (1 + b1 * c1 + b2 * c2) + 2.54 * d1 * c1 / (
             1 + d1 * c1 + d2 * c2
         )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        load_m3 = load_kg * bed_density   # mol/m³
         ΔH = -57047  # J/mol
 
     elif isotherm_type_1 == "Dual_site Langmuir":
@@ -311,7 +313,7 @@ def adsorption_isotherm_1(
             1 + b2 * c1
         )  # mol/kg
 
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        load_m3 = load_kg * bed_density   # mol/m³
         ΔH = R * (
             -3391.58 + 273.2725 * n1 * (1 - bed_properties["bed_voidage"]) / bed_density
         )  # J/mol
@@ -347,7 +349,7 @@ def adsorption_isotherm_2(
         load_kg = (
             c_m * c_G * K_ads * RH / ((1 - K_ads * RH) * (1 + (c_G - 1) * K_ads * RH))
         )  # mol/kg
-        load_m3 = load_kg * bed_density / (1 - ε)  # mol/m³
+        load_m3 = load_kg * bed_density   # mol/m³
 
     elif isotherm_type == "None":
         load_m3 = 0 * pressure
@@ -470,8 +472,8 @@ def create_multi_plot(profiles, bed_properties):
     bed_density = bed_properties["bed_density"]
     bed_voidage = bed_properties["bed_voidage"]
 
-    adsorbed_CO2 = np.array(adsorbed_CO2) / (bed_density / (1 - bed_voidage))
-    adsorbed_H2O = np.array(adsorbed_H2O) / (bed_density / (1 - bed_voidage))
+    adsorbed_CO2 = np.array(adsorbed_CO2) / (bed_density )
+    adsorbed_H2O = np.array(adsorbed_H2O) / (bed_density )
     relative_humidity = mole_fraction_to_relative_humidity(outlet_H2O, P_outlet, T_gas)
 
     figsize = (15, 8)

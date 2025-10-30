@@ -16,7 +16,7 @@ from kpi_calculations import (
     print_stage_kpis,
     print_cycle_kpis,
 )
-import config_LJ_2015 as config
+import config_options.config_LJ as config
 
 """
 Multi-stage adsorption column simulation for CO2 capture.
@@ -85,13 +85,13 @@ def define_stage_conditions(stage, bed_properties, pressure_left, pressure_right
             return (
                 get_left_velocity()
                 * bed_properties["column_area"]
-                * bed_properties["bed_voidage"]
+                
             )
         elif stage == "steam_desorption":
             return (
                 get_left_velocity()
                 * bed_properties["column_area"]
-                * bed_properties["bed_voidage"]
+                
             )
         else:
             return None
@@ -101,14 +101,13 @@ def define_stage_conditions(stage, bed_properties, pressure_left, pressure_right
             return (
                 get_left_velocity()
                 * bed_properties["column_area"]
-                * bed_properties["bed_voidage"]
                 * 1.13
             )
         elif stage == "steam_desorption":
             return (
                 get_left_velocity()
                 * bed_properties["column_area"]
-                * bed_properties["bed_voidage"]
+               
                 * 0.6
             )
         else:
@@ -134,7 +133,7 @@ def define_stage_conditions(stage, bed_properties, pressure_left, pressure_right
         "y2_left_value": get_left_composition()["y2"],
         "y3_left_value": get_left_composition()["y3"],
     }
-
+    
     # Right boundary conditions
 
     right_values = {
@@ -162,7 +161,7 @@ def run_stage(
     t_span,
     initial_conditions,
     cycle_properties,
-    solver="LSODA",
+    solver="BDF",
 ):
     """
     Run simulation for a single process stage.
@@ -213,15 +212,15 @@ def run_stage(
     # elif stage == "blowdown":
     #     max_step = 5.0
     #     first_step = 1e-6
-    # elif stage == "heating":
-    #     max_step = 1.0  # maximum time step in seconds
-    #     first_step = 1e-6  # initial time step in seconds
+    elif stage == "heating":
+        max_step = 1.0  # maximum time step in seconds
+        first_step = 1e-6  # initial time step in seconds
     # elif stage == "steam_desorption":
     #     max_step = 0.1
     #     first_step = 1e-6
-    # elif stage == "desorption":
-    #      max_step = 1.0
-    #      first_step = 1e-3
+    elif stage == "desorption":
+         max_step = 1.0
+         first_step = 1e-3
     # elif stage == "cooling":
     #     max_step = 0.1
     #     first_step = 1e-6
@@ -361,7 +360,8 @@ def run_stage(
     )
 
 
-def run_cycle(n_cycles):
+def run_cycle(n_cycles, bed_properties, column_grid, initial_conditions, rtol, atol_array):
+
     """
     Run complete TVSA cycles until convergence.
 
@@ -632,7 +632,6 @@ def run_cycle(n_cycles):
 
 def main():
     """Main execution function."""
-    global bed_properties, column_grid, initial_conditions, rtol, atol_array
 
     # Initialize system properties
     bed_properties, column_grid, initial_conditions, rtol, atol_array = (
@@ -643,7 +642,7 @@ def main():
     print("Starting TVSA simulation...")
     n_cycles = 5
 
-    simulation_results = run_cycle(n_cycles)
+    simulation_results = run_cycle(n_cycles, bed_properties, column_grid, initial_conditions, rtol, atol_array)
 
     if simulation_results is None:
         print("Simulation failed!")
