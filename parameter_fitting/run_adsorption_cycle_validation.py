@@ -167,7 +167,7 @@ def create_fixed_properties():
 def define_boundary_conditions(bed_properties):
     left_values = {
         "left_type": "mass_flow",
-        "velocity": 100
+        "velocity": 200
         / 60
         / 1e6
         / bed_properties["column_area"]

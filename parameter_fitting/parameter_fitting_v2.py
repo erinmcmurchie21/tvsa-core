@@ -10,18 +10,18 @@ from types import SimpleNamespace
 
 def import_data():
     time_observed_temperature = np.loadtxt(
-        "data/pini_data_temperature_2.csv", delimiter=",", usecols=0
+        "200cm3/temperature.csv", delimiter=",", usecols=0
     )
     temperature_observed = np.loadtxt(
-        "data/pini_data_temperature_2.csv", delimiter=",", usecols=1
+        "200cm3/temperature.csv", delimiter=",", usecols=1
     )
     temperature_observed += 273.15
 
     time_observed_molefraction = np.loadtxt(
-        "data/pini_data_molefraction_2.csv", delimiter=",", usecols=0
+        "200cm3/yCO2.csv", delimiter=",", usecols=0
     )
     molefraction_observed = np.loadtxt(
-        "data/pini_data_molefraction_2.csv", delimiter=",", usecols=1
+        "200cm3/yCO2.csv", delimiter=",", usecols=1
     )
 
     observed_data = {
@@ -33,7 +33,6 @@ def import_data():
     return observed_data
 
 def objective_function(parameters):
-    # Initialize fixed properties and boundary conditions
     t0 = time.time()
     bed_properties, column_grid, initial_conditions, rtol, atol_array = (
         run.create_fixed_properties()
@@ -42,19 +41,14 @@ def objective_function(parameters):
         bed_properties
     )
 
-    # Define parameter names and update properties
     param_names = ["h_bed", "h_wall", "K_z"]
     bed_properties = bed_properties.copy()
-
     for i, param_name in enumerate(param_names):
         bed_properties[param_name] = parameters[i]
     param_dict = {name: float(val) for name, val in zip(param_names, parameters)}
-    print(
-        f"Testing parameters: {param_dict}, ",
-    )
-    t_span_1 = [0, 10]
+    print(f"Testing parameters: {param_dict}, ")
 
-    # Define ODE system
+    t_span_1 = [0, 10]
     def ODE_func(t, results_vector):
         return column.ODE_calculations(
             t,
@@ -66,37 +60,40 @@ def objective_function(parameters):
             column_direction=column_direction,
         )
 
-    # Run ODE solver
-    output_matrix_1 = solve_ivp(
-        ODE_func,
-        t_span_1,
-        initial_conditions,
-        method="BDF",
-        rtol=rtol,
-        atol=atol_array,
-        max_step=0.1,
-        first_step=1e-3,
-    )
-    initial_conditions_2 = output_matrix_1.y[:, -1]
-    t_span_2 = [10, 3000]
-    output_matrix_2 = solve_ivp(
-        ODE_func,
-        t_span_2,
-        initial_conditions_2,
-        method="BDF",
-        rtol=rtol,
-        atol=atol_array,
-        max_step=10,
-        first_step=1e-3,
-    )
-    time_combined = np.concatenate([output_matrix_1.t, output_matrix_2.t])
-    Y_combined = np.concatenate([output_matrix_1.y, output_matrix_2.y], axis=1)
+    try:
+        output_matrix_1 = solve_ivp(
+            ODE_func,
+            t_span_1,
+            initial_conditions,
+            method="BDF",
+            rtol=rtol,
+            atol=atol_array,
+            max_step=0.1,
+            first_step=1e-3,
+        )
+        initial_conditions_2 = output_matrix_1.y[:, -1]
+        t_span_2 = [10, 3000]
+        output_matrix_2 = solve_ivp(
+            ODE_func,
+            t_span_2,
+            initial_conditions_2,
+            method="BDF",
+            rtol=rtol,
+            atol=atol_array,
+            max_step=10,
+            first_step=1e-3,
+        )
+        time_combined = np.concatenate([output_matrix_1.t, output_matrix_2.t])
+        Y_combined = np.concatenate([output_matrix_1.y, output_matrix_2.y], axis=1)
+        output_matrix = SimpleNamespace(
+            t=time_combined,
+            y=Y_combined
+        )
+    except Exception as e:
+        print(f"Solver failed for parameters {param_dict}: {e}")
+        return 1e6
 
-    output_matrix = SimpleNamespace(
-    t=time_combined,
-    y=Y_combined
-)
-    # Compute results
+    # ...existing code for error calculation...
     _, _, _, y1_walls_result, _, _, _ = column.final_wall_values(
         column_grid, bed_properties, left_values, right_values, output_matrix
     )
@@ -107,30 +104,26 @@ def objective_function(parameters):
     )
     y1_sim = y1_walls_result[-1, :]
 
-    # Initialize error computation
     total_error = 0
     error_components = {}
     weights = {"temperature": 1.0, "molefraction": 1.0}
-
-    # Load observed data
     observed_data = import_data()
     T_observed = observed_data["temperature"]
     time_temp_observed = observed_data["t_temperature"]
 
-    # Temperature error
     temp_sim_interp = np.interp(time_temp_observed, output_matrix.t, T_sim[8, :])
     temp_MAPE_error = np.abs(
         100 / len(T_observed)
         * np.sum((temp_sim_interp - T_observed) / T_observed)
     )
-    temp_Adj_MAPE_error = temp_MAPE_error **2 / 1000
+    temp_adj_MAPE_error = temp_MAPE_error **2
     temp_NRMSE_error = np.sqrt(
         np.mean((temp_sim_interp - T_observed) ** 2)
     ) / (np.max(T_observed) - np.min(T_observed))
-    error_components["temperature"] = temp_NRMSE_error
-    total_error += weights["temperature"] * temp_NRMSE_error
+    temperature_error = temp_adj_MAPE_error
+    error_components["temperature"] = temperature_error
+    total_error += weights["temperature"] * temperature_error
 
-    # Mole fraction error
     y1_observed = observed_data["molefraction"]
     t_molefraction_observed = observed_data["t_molefraction"]
     y1_sim_interp = np.interp(t_molefraction_observed, output_matrix.t, y1_sim)
@@ -138,15 +131,15 @@ def objective_function(parameters):
         100 / len(y1_observed)
         * np.sum((y1_sim_interp - y1_observed) / y1_observed)
     )
+    molefraction_adj_MAPE_error = molefraction_MAPE_error **2 / 1000
     molefraction_NRMSE_error = np.sqrt(
         np.mean((y1_sim_interp - y1_observed) ** 2)
     ) / (np.max(y1_observed) - np.min(y1_observed))
-    molefraction_error = molefraction_NRMSE_error
+    
+    molefraction_error = molefraction_adj_MAPE_error
     error_components["molefraction"] = molefraction_error
     total_error += weights["molefraction"] * molefraction_error
 
-    # Output results
-    param_dict = {name: float(val) for name, val in zip(param_names, parameters)}
     error_components_clean = {k: float(v) for k, v in error_components.items()}
     print(
         f"Total Error: {float(total_error):.4f}, "
@@ -154,7 +147,7 @@ def objective_function(parameters):
     )
     t1 = time.time()
     total_time = t1 - t0
-    
+
     return total_error
 
 def run_best_simulation(best_params):
@@ -178,6 +171,10 @@ def run_best_simulation(best_params):
     
     bed_properties = simulation_conditions["bed_properties"].copy()
     bed_properties.update(best_params)
+
+    print("\nFitting Parameters:")
+    for param, value in best_params.items():
+        print(f"  {param}: {value:.4f}")
 
     column_grid = simulation_conditions["column_grid"]
     initial_conditions = simulation_conditions["initial_conditions"]
@@ -203,8 +200,6 @@ def run_best_simulation(best_params):
             column_direction=column_direction,
         )
 
-    
-
     output_matrix = solve_ivp(
         ODE_func,
         time_span,
@@ -224,7 +219,7 @@ def run_best_simulation(best_params):
     return output_matrix, y1_walls_result, bed_properties
 
 def plot_results(best_params):
-    output_matrix_fitted, y1_walls_result_fitted, bed_properties = run_best_simulation(
+    output_matrix_fitted, y1_walls_result_fitted, bed_properties_copy = run_best_simulation(
         best_params
     )
     observed_data = import_data()
@@ -236,7 +231,7 @@ def plot_results(best_params):
     )
 
     simulation_conditions = {
-        "bed_properties": bed_properties,
+        "bed_properties": bed_properties_copy,
         "column_grid": column_grid,
         "initial_conditions": initial_conditions,
         "left_values": left_values,
@@ -304,9 +299,16 @@ def plot_results(best_params):
 
 if __name__ == "__main__":
 
+    def check_output():
+        parameters = np.array([80, 35, 0.001])
+        best_params = dict(zip(["h_bed", "h_wall", "K_z"], parameters))
+        return plot_results(best_params)
+    
+    check_output()
+
     param_names = ["h_bed", "h_wall", "K_z"]
-    initial_guess = [110, 30.0, 0.4]
-    bounds = [(80, 150), (5, 50), (0, 1)]
+    initial_guess = [100, 30.0, 0.4]
+    bounds = [(80, 150), (10, 50), (0, 1)]
 
     print(f"Starting parameter fitting for: {param_names}")
     print(f"Initial guess: {initial_guess}")

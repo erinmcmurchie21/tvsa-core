@@ -10,18 +10,18 @@ from types import SimpleNamespace
 
 def import_data():
     time_observed_temperature = np.loadtxt(
-        "data/pini_data_temperature_2.csv", delimiter=",", usecols=0
+        "200cm3/temperature.csv", delimiter=",", usecols=0
     )
     temperature_observed = np.loadtxt(
-        "data/pini_data_temperature_2.csv", delimiter=",", usecols=1
+        "200cm3/temperature.csv", delimiter=",", usecols=1
     )
     temperature_observed += 273.15
 
     time_observed_molefraction = np.loadtxt(
-        "data/pini_data_molefraction_2.csv", delimiter=",", usecols=0
+        "200cm3/yCO2.csv", delimiter=",", usecols=0
     )
     molefraction_observed = np.loadtxt(
-        "data/pini_data_molefraction_2.csv", delimiter=",", usecols=1
+        "200cm3/yCO2.csv", delimiter=",", usecols=1
     )
 
     observed_data = {
@@ -123,12 +123,13 @@ def objective_function(parameters):
         100 / len(T_observed)
         * np.sum((temp_sim_interp - T_observed) / T_observed)
     )
-    temp_Adj_MAPE_error = temp_MAPE_error **2 / 1000
+    temp_Adj_MAPE_error = temp_MAPE_error **2 
     temp_NRMSE_error = np.sqrt(
         np.mean((temp_sim_interp - T_observed) ** 2)
     ) / (np.max(T_observed) - np.min(T_observed))
-    error_components["temperature"] = temp_NRMSE_error
-    total_error += weights["temperature"] * temp_NRMSE_error
+    temp_error = temp_Adj_MAPE_error
+    error_components["temperature"] = temp_error
+    total_error += weights["temperature"] * temp_error
 
     # Mole fraction error
     y1_observed = observed_data["molefraction"]
@@ -138,10 +139,11 @@ def objective_function(parameters):
         100 / len(y1_observed)
         * np.sum((y1_sim_interp - y1_observed) / y1_observed)
     )
+    molefraction_adj_MAPE_error = molefraction_MAPE_error **2 / 1000
     molefraction_NRMSE_error = np.sqrt(
         np.mean((y1_sim_interp - y1_observed) ** 2)
     ) / (np.max(y1_observed) - np.min(y1_observed))
-    molefraction_error = molefraction_NRMSE_error
+    molefraction_error = molefraction_adj_MAPE_error
     error_components["molefraction"] = molefraction_error
     total_error += weights["molefraction"] * molefraction_error
 
